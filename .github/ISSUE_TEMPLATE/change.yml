@@ -1,0 +1,64 @@
+name: Change or feature
+description: Propose one bounded product, code, documentation, or infrastructure outcome.
+title: "[M?][AREA][P?] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: One observable result.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: In scope / out of scope
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and blocks
+      placeholder: "Depends on #; blocks #"
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria and verification
+      description: Observable criteria plus required unit, integration, E2E, manual, performance, or security evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Security, privacy, and permissions
+      description: State none explicitly when there is no impact.
+    validations:
+      required: true
+  - type: textarea
+    id: accessibility
+    attributes:
+      label: Accessibility and UX
+    validations:
+      required: true
+  - type: textarea
+    id: migration
+    attributes:
+      label: Documentation, compatibility, migration, and rollback
+    validations:
+      required: true
+  - type: textarea
+    id: stops
+    attributes:
+      label: Hard-stop conditions
+      description: Decisions that require a human gate.
+    validations:
+      required: true

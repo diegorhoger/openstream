@@ -1,0 +1,31 @@
+name: governance
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  repository-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Require governance files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f AGENTS.md
+          test -f SECURITY.md
+          test -f docs/product/PRD.md
+          test -f docs/product/ROADMAP.md
+          test -f docs/engineering/AGENT_GRAPH.md
+          test -f .opencode/graph.yaml
+      - name: Reject shipped Python sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find apps crates services integrations -type f -name '*.py' -print -quit 2>/dev/null | grep -q .; then
+            echo 'Python source is not permitted in shipped product paths.' >&2
+            exit 1
+          fi

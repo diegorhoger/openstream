@@ -1,0 +1,23 @@
+version: 1
+repository: diegorhoger/openstream
+source_of_truth: github
+queue:
+  resume_open_prs_first: true
+  issue_order: oldest_unblocked
+  implementation_parallelism: 1
+  analysis_parallelism: 4
+roles:
+  required: [planner, implementer, verifier, reviewer, evaluator]
+  conditional:
+    security: [auth, network, permissions, secrets, remote_control, tenancy, billing, plugins, updates, signing, privacy]
+    release: [artifact, distribution, version, store, deploy]
+rules:
+  one_issue_per_pr: true
+  implementation_language: rust_first
+  shipped_python: forbidden
+  implementer_may_self_approve: false
+  invalidate_gate_on_push: true
+  autonomous_merge: false
+gates:
+  required: [dependencies, acceptance, checks, threads, independent_review, exact_head]
+  hard_stop_file: AGENTS.md

@@ -1,0 +1,47 @@
+name: Bug report
+description: Report a reproducible defect that is not a security vulnerability.
+title: "[BUG][AREA][P?] "
+labels: [bug]
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or exact commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [Windows, macOS, Linux, iOS/iPadOS, Android, Web/Cloud, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted logs or evidence
+      description: Never include secrets or personal data.
+  - type: textarea
+    id: regression
+    attributes:
+      label: Regression test and scope notes
+    validations:
+      required: true

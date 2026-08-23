@@ -1,0 +1,30 @@
+name: Architecture or product decision
+description: Propose an ADR-backed irreversible or high-impact decision.
+title: "[ADR][AREA] "
+labels: [documentation]
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: Context and decision required
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options and evidence
+      description: Include consequences, security/privacy, compatibility, and cost.
+    validations:
+      required: true
+  - type: textarea
+    id: recommendation
+    attributes:
+      label: Recommended decision and reversal path
+    validations:
+      required: true
+  - type: textarea
+    id: stops
+    attributes:
+      label: Work blocked pending decision
+    validations:
+      required: true
