@@ -1,0 +1,10 @@
+[package]
+name = "openstream-domain"
+description = "Pure OpenStream domain types, IDs, and validation. Imports no UI, database, network, Tauri, or Cloud implementation (ADR-0001, TECHNICAL_SPEC §3)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true

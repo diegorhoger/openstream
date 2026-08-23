@@ -1,0 +1,10 @@
+[package]
+name = "openstream-protocol"
+description = "OSCP schema, codecs, and compatibility rules. Wire contracts only; no transport or platform policy (ADR-0003, PROTOCOL.md)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,10 @@
+[package]
+name = "openstream-plugin-host"
+description = "Wasmtime Component Model host: narrow capability-scoped imports, memory/fuel/time limits, sandbox denial tests."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true

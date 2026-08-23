@@ -1,0 +1,10 @@
+[package]
+name = "openstream-mobile-ffi"
+description = "Narrow UniFFI surface exposing OSCP codecs, Noise sessions, validation, and sync merge to SwiftUI/Compose. Narrow and versioned only."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true

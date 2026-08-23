@@ -1,0 +1,10 @@
+[package]
+name = "openstream-pairing"
+description = "Noise pairing/session state machine: single-use QR PSKs, exact prologue, SAS, desktop confirmation, no fallback suites."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true

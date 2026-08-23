@@ -1,0 +1,10 @@
+[package]
+name = "openstream-integrations"
+description = "Adapter contracts for OBS, OS automation, HTTP, MIDI, and OSC integrations. Contracts only; concrete adapters arrive later."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true

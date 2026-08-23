@@ -1,0 +1,36 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/openstream-action-sdk",
+    "crates/openstream-domain",
+    "crates/openstream-discovery",
+    "crates/openstream-engine",
+    "crates/openstream-integrations",
+    "crates/openstream-pairing",
+    "crates/openstream-persistence",
+    "crates/openstream-plugin-host",
+    "crates/openstream-protocol",
+    "crates/openstream-sync",
+    "crates/openstream-testkit",
+    "crates/openstream-crypto",
+    "crates/openstream-mobile-ffi",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "Apache-2.0"
+repository = "https://github.com/diegorhoger/openstream"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true

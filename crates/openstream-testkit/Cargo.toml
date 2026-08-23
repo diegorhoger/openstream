@@ -1,0 +1,10 @@
+[package]
+name = "openstream-testkit"
+description = "Fake clock, adapters, services, and golden fixtures shared by deterministic tests across crates."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
