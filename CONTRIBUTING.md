@@ -8,7 +8,7 @@ Thank you for helping build OpenStream.
 4. Add deterministic success, failure, crash-window, and denial tests as applicable.
 5. Never add telemetry by default, secrets, proprietary assets, undocumented permissions, or hosted Cloud implementation to this public repository.
 6. Add an ADR for a public protocol, irreversible architecture, security boundary, source boundary, dependency policy, or migration decision.
-7. Run repository checks and include exact commands, results, and SHA in the PR.
+7. Run repository checks and include exact commands, results, and SHA in the PR. The gate-by-gate reference and local-parity runner live in `docs/engineering/CHECKS.md` and `scripts/local-parity.sh`.
 8. Sign off every commit under the Developer Certificate of Origin with `git commit -s`.
 9. Use distinct planner, implementer, verifier, reviewer, and evaluator context IDs in the PR provenance block.
 

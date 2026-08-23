@@ -1,0 +1,298 @@
+name: quality
+
+# M0 deterministic quality and release harness (issue #6).
+#
+# Complements `.github/workflows/governance.yml`: governance stays the policy
+# gate (provenance, DCO, repository contract); this workflow owns the
+# engineering gates (format/lint/unit, dependency/license, secrets, codegen,
+# artifact builds). Every job checks out the exact pull-request head SHA and
+# asserts it before doing anything else, per docs/engineering/REVIEW_GATES.md.
+# Local equivalents for every step: scripts/local-parity.sh and
+# docs/engineering/CHECKS.md.
+#
+# Third-party actions are pinned to full commit SHAs (repository policy).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  rust:
+    name: rust (fmt / clippy / test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Assert exact head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_HEAD" || {
+            echo "checked out $actual, expected $EXPECTED_HEAD" >&2
+            exit 1
+          }
+
+      - name: Install Linux toolchain dependencies for the Tauri shell
+        # The workspace includes apps/desktop/src-tauri; compiling tauri/wry
+        # needs the GTK/WebKitGTK development headers even for clippy/test.
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config curl wget file \
+            libssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev librsvg2-dev libxdo-dev
+
+      - name: Show pinned Rust toolchain
+        run: |
+          set -euo pipefail
+          rustup show active-toolchain
+          cargo --version
+
+      - name: Ensure rustfmt and clippy for the pinned toolchain
+        # Runner rustup uses the minimal profile; this materializes the
+        # lint/format components for exactly the toolchain rust-toolchain.toml
+        # pins instead of whatever the image ships.
+        run: rustup component add rustfmt clippy
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test --workspace
+
+  ui:
+    name: ui (typecheck / test / build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/desktop/ui
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Assert exact head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_HEAD" || {
+            echo "checked out $actual, expected $EXPECTED_HEAD" >&2
+            exit 1
+          }
+
+      - name: Install pnpm (pinned by packageManager field)
+        uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+        with:
+          package_json_file: apps/desktop/ui/package.json
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/desktop/ui/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Tests (unit, contrast/a11y, css parity, i18n)
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  contracts:
+    name: contracts (codegen dirty check / review gates)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Assert exact head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_HEAD" || {
+            echo "checked out $actual, expected $EXPECTED_HEAD" >&2
+            exit 1
+          }
+
+      - name: Prove codegen check failure modes
+        run: node scripts/check-codegen.mjs --self-test
+
+      - name: Codegen dirty check
+        run: node scripts/check-codegen.mjs tools/codegen.json
+
+      - name: Review-gate validation
+        # Reads the LIVE pull-request body via the API: a push necessarily
+        # precedes the body update that declares the new head SHA, so the
+        # check retries within a bounded window for the declaration to catch
+        # up and fails closed if it never does.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/check-review-gates.mjs --refresh
+
+  cargo-deny:
+    name: cargo-deny (licenses / advisories)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Assert exact head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_HEAD" || {
+            echo "checked out $actual, expected $EXPECTED_HEAD" >&2
+            exit 1
+          }
+
+      - name: Check licenses and advisories
+        uses: EmbarkStudios/cargo-deny-action@c3bbe7e4e3f7baeee1a3dd9aec0a3b2aded580fb # v2.1.1
+        with:
+          command: check
+          arguments: --all-features
+          manifest-path: ./Cargo.toml
+
+  secrets:
+    name: secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact pull-request head (full history)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Assert exact head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_HEAD" || {
+            echo "checked out $actual, expected $EXPECTED_HEAD" >&2
+            exit 1
+          }
+
+      - name: Scan for secrets
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: 'false'
+
+  artifacts:
+    name: artifacts (build only, unsigned)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Assert exact head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_HEAD" || {
+            echo "checked out $actual, expected $EXPECTED_HEAD" >&2
+            exit 1
+          }
+
+      - name: Install Linux toolchain dependencies for the Tauri shell
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config curl wget file \
+            libssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev librsvg2-dev libxdo-dev
+
+      - name: Install pnpm (pinned by packageManager field)
+        uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+        with:
+          package_json_file: apps/desktop/ui/package.json
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/desktop/ui/pnpm-lock.yaml
+
+      - name: Build UI bundle (no publish, no signing)
+        run: pnpm install --frozen-lockfile && pnpm build
+        working-directory: apps/desktop/ui
+
+      - name: Upload UI bundle artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ui-dist-${{ github.event.pull_request.head.sha }}
+          path: apps/desktop/ui/dist/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Build Rust workspace binary (debug, no publish, no signing)
+        run: cargo build --workspace
+
+      - name: Upload desktop shell binary artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: openstream-desktop-debug-linux-${{ github.event.pull_request.head.sha }}
+          path: target/debug/openstream-desktop
+          retention-days: 7
+          if-no-files-found: error

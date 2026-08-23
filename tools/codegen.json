@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "generators": [
+    {
+      "id": "oscp-proto-codegen",
+      "status": "pending",
+      "note": "OSCP protobuf codegen arrives in M2 (ADR-0003, ADR-0005, crates/openstream-protocol lib docs). Until the generator lands, no generated artifact may exist under this path; a hand-authored file fails closed.",
+      "generated": ["crates/openstream-protocol/src/gen/"]
+    }
+  ]
+}
