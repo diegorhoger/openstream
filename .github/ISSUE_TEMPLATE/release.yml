@@ -1,0 +1,42 @@
+name: Release gate
+description: Track one release candidate through exact-artifact human approval.
+title: "[RELEASE][v?.?.?] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: scope
+    attributes:
+      label: Release scope and exact source SHA
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility matrix and migrations
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Checks, artifacts, checksums, SBOM, and provenance
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Security, privacy, dependency, and accessibility gates
+    validations:
+      required: true
+  - type: textarea
+    id: rollback
+    attributes:
+      label: Rollback and known limitations
+    validations:
+      required: true
+  - type: checkboxes
+    id: human
+    attributes:
+      label: Human-controlled actions
+      options:
+        - label: Signing, deployment, store submission, and publication require explicit maintainer approval.
+          required: true

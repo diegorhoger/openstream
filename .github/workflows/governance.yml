@@ -1,0 +1,114 @@
+name: governance
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  repository-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Assert exact head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_HEAD" || {
+            echo "checked out $actual, expected $EXPECTED_HEAD" >&2
+            exit 1
+          }
+
+      - name: Require governance files and public boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in \
+            AGENTS.md SECURITY.md CONTRIBUTING.md \
+            docs/product/PRD.md docs/product/ROADMAP.md docs/product/ROADMAP_GRAPH.tsv \
+            docs/engineering/AGENT_GRAPH.md .opencode/graph.yaml; do
+            test -f "$path" || { echo "missing $path" >&2; exit 1; }
+          done
+          test ! -d services || {
+            echo 'Hosted service implementation is forbidden in the public repository.' >&2
+            exit 1
+          }
+
+      - name: Reject shipped Python sources without fail-open paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          for dir in apps crates integrations packages simulators; do
+            if [[ -d "$dir" ]] && find "$dir" -type f -name '*.py' -print -quit | grep -q .; then
+              echo "Python source is not permitted in shipped product path: $dir" >&2
+              exit 1
+            fi
+          done
+
+      - name: Validate dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          awk -F '\t' '
+            NR == 1 {
+              if ($1 != "issue" || $2 != "milestone" || $3 != "dependencies") exit 10
+              next
+            }
+            {
+              issue = $1 + 0
+              if (issue != NR - 1 || seen[issue]++) exit 11
+              if ($3 != "-") {
+                count = split($3, deps, ",")
+                for (i = 1; i <= count; i++) {
+                  dep = deps[i] + 0
+                  if (dep < 1 || dep >= issue) exit 12
+                }
+              }
+            }
+            END { if (NR != 62) exit 13 }
+          ' docs/product/ROADMAP_GRAPH.tsv
+
+      - name: Require independent agent provenance
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          field() {
+            printf '%s\n' "$PR_BODY" | sed -n "s/^$1:[[:space:]]*//p" | head -n1
+          }
+          implementer="$(field AGENT_IMPLEMENTER)"
+          verifier="$(field AGENT_VERIFIER)"
+          reviewer="$(field AGENT_REVIEWER)"
+          evaluator="$(field AGENT_EVALUATOR)"
+          for value in "$implementer" "$verifier" "$reviewer" "$evaluator"; do
+            [[ -n "$value" && "$value" != pending ]] || {
+              echo 'Missing non-pending AGENT_* provenance in PR body.' >&2
+              exit 1
+            }
+          done
+          [[ "$implementer" != "$verifier" && "$implementer" != "$reviewer" && "$implementer" != "$evaluator" ]] || exit 1
+          [[ "$verifier" != "$reviewer" && "$verifier" != "$evaluator" && "$reviewer" != "$evaluator" ]] || exit 1
+
+      - name: Enforce DCO on every pull-request commit
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-list "$BASE_SHA..HEAD" | while read -r commit; do
+            git show -s --format=%B "$commit" | grep -Eiq '^Signed-off-by: .+ <[^>]+>$' || {
+              echo "Commit $commit lacks a DCO Signed-off-by trailer." >&2
+              exit 1
+            }
+          done

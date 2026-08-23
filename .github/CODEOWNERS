@@ -1,0 +1,10 @@
+# Advisory ownership until a second eligible maintainer exists.
+# Branch protection must not require CODEOWNER approval from the PR author.
+# The exact-head human merge gate in GOVERNANCE.md remains mandatory.
+/.github/ @diegorhoger
+/.opencode/ @diegorhoger
+/docs/product/ @diegorhoger
+/docs/architecture/ @diegorhoger
+/docs/adr/ @diegorhoger
+/crates/ @diegorhoger
+/apps/ @diegorhoger
