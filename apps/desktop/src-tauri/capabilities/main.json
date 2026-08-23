@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Main window capability. Deny-by-default: grants zero IPC permissions. The M0 shell renders static UI and registers no Tauri commands, so the WebView has no invokable surface. Future permissions must be added explicitly with security review.",
+  "windows": ["main"],
+  "permissions": []
+}

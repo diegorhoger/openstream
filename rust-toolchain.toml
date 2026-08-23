@@ -1,0 +1,4 @@
+# Pinned stable toolchain per ADR-0001 ("stable pinned Rust") and TECHNICAL_SPEC §2.
+# rustup installs this exact version on machines that lack it.
+[toolchain]
+channel = "1.98.0"

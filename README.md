@@ -34,7 +34,7 @@ OpenStream is at **M0 Foundation**. Product, architecture, security, design, and
 6. Native mobile owns direct LAN control; browsers reach Engines only through Cloud.
 7. Accessible and global from the first release.
 
-Read the [PRD](docs/product/PRD.md), [roadmap](docs/product/ROADMAP.md), [technical specification](docs/architecture/TECHNICAL_SPEC.md), [domain model](docs/architecture/DOMAIN_MODEL.md), [OSCP message contract](docs/architecture/OSCP_MESSAGES.md), [security model](docs/architecture/SECURITY.md), [threat model and capability taxonomy](docs/security/README.md), and [agent graph](docs/engineering/AGENT_GRAPH.md).
+Read the [PRD](docs/product/PRD.md), [roadmap](docs/product/ROADMAP.md), [technical specification](docs/architecture/TECHNICAL_SPEC.md), [domain model](docs/architecture/DOMAIN_MODEL.md), [OSCP message contract](docs/architecture/OSCP_MESSAGES.md), [security model](docs/architecture/SECURITY.md), [workspace and build](docs/architecture/WORKSPACE.md), [threat model and capability taxonomy](docs/security/README.md), and [agent graph](docs/engineering/AGENT_GRAPH.md).
 
 ## License
 
