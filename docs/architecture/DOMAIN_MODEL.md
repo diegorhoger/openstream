@@ -115,6 +115,8 @@ Save-time runs S1–S4; nothing failing S1–S4 persists as enabled. Execution-t
 
 At base commit `554e0f97fcfd29c703b7e5fe5eb040088ec2f784` this repository contains no runtime code; every rule above is *specified* contract that M1/M2 issues implement and verify. This section must be updated, not deleted, as controls become enforced.
 
+Enforcement status update (issue #7): `crates/openstream-domain` now implements the deck-domain subset for profiles, decks with folder paths, pages, and controls — typed UUIDv7 identifiers, explicit `major.minor` schema versioning with fail-closed unknown-version and unknown-member rejection, deterministic serialization verified by golden fixtures (`crates/openstream-domain/tests/fixtures/`), property tests, and save-time structural validation scoped to those entities. Numeric caps not fixed by this specification (text lengths, folder-path shape, page/control/profile collection sizes) are pinned as that crate's v1 contract in its `limits` module; tightening any of them later is a domain-major change per §1. Action-graph validation (S2 limits), referential/semantic stages (S3–S4), runtime revalidation (S5), persistence, and sync remain specified-only until their milestones.
+
 ## References
 
 - `docs/architecture/OSCP_MESSAGES.md` — typed envelopes, errors, states, recovery, fixtures
