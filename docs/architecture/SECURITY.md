@@ -2,6 +2,8 @@
 
 OpenStream is deny-by-default and host-authoritative. Effective authority never exceeds the intersection of platform capability, built-in/plugin manifest request, user grant, action-instance narrowing, workspace policy, and runtime context.
 
+The authoritative per-boundary threat model lives in [`docs/security/THREAT_MODEL.md`](../security/THREAT_MODEL.md) and the authoritative capability registry in [`docs/security/CAPABILITY_TAXONOMY.md`](../security/CAPABILITY_TAXONOMY.md); this page stays the summary.
+
 ## Representative capabilities
 
 ```text
