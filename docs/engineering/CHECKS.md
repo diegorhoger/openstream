@@ -48,6 +48,12 @@ of `docs/engineering/REVIEW_GATES.md`: the declared issue exists as a row in
 the exact checked-out HEAD. Provenance (`AGENT_*`) and DCO enforcement remain
 in `governance.yml`.
 
+In CI the step reads the live pull-request body through the API
+(`--refresh`, job permission `pull-requests: read`) with a bounded 120s
+convergence window: a push always precedes the body edit that declares its
+head SHA, so CI waits briefly for that declaration and fails closed if it
+never arrives.
+
 To run locally: `node scripts/check-review-gates.mjs --body-file <path>`
 (or set `PR_BODY_FILE=<path>` for the parity script).
 

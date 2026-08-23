@@ -136,6 +136,9 @@ jobs:
     name: contracts (codegen dirty check / review gates)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - name: Checkout exact pull-request head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -161,9 +164,15 @@ jobs:
         run: node scripts/check-codegen.mjs tools/codegen.json
 
       - name: Review-gate validation
+        # Reads the LIVE pull-request body via the API: a push necessarily
+        # precedes the body update that declares the new head SHA, so the
+        # check retries within a bounded window for the declaration to catch
+        # up and fails closed if it never does.
         env:
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: node scripts/check-review-gates.mjs
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/check-review-gates.mjs --refresh
 
   cargo-deny:
     name: cargo-deny (licenses / advisories)
