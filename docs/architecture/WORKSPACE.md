@@ -14,9 +14,10 @@ rollback posture of the scaffold.
 
 Dependency policy: workspace dependencies are pinned to exact versions
 (`tauri =2.11.5`, `tauri-build =2.6.3`); npm dependencies use exact versions
-with the resolved lockfile committed. Advisory/license automation
-(cargo-deny equivalent) arrives in a later milestone; until then pins stay
-deliberately minimal.
+with the resolved lockfile committed (`@types/node 24.13.3` is a types-only
+devDependency for the UI package's Node-native test runner). Advisory/license
+automation (cargo-deny equivalent) arrives in a later milestone; until then
+pins stay deliberately minimal.
 
 ## Layout versus TECHNICAL_SPEC §3
 
@@ -72,15 +73,17 @@ Cargo command because the Tauri context embeds `apps/desktop/ui/dist`):
 ```sh
 pnpm --dir apps/desktop/ui install
 pnpm --dir apps/desktop/ui typecheck   # tsc --noEmit, strict
+pnpm --dir apps/desktop/ui test        # node --test over TS (design-token + a11y contract)
 pnpm --dir apps/desktop/ui build       # typecheck + vite build -> ui/dist
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-A clean clone passes all six commands; `cargo test` currently reports the two
+A clean clone passes all seven commands; `cargo test` currently reports the two
 contract-anchor unit tests (domain model version, OSCP version) plus zero-test
-skeleton crates, which is expected for M0.
+skeleton crates, which is expected for M0; the UI test script runs the design
+token and accessibility contract (see docs/design/DESIGN_TOKENS.md).
 
 ## Compatibility and rollback
 
