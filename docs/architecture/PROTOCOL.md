@@ -2,6 +2,8 @@
 
 OSCP is the public, versioned contract among Engine, Studio, conformance simulators, Cloud relay, native mobile clients, and future hardware adapters. Canonical messages are Protobuf. Transport security depends on the stage and trust boundary; Tauri invoke commands are never the public device protocol.
 
+The typed message schemas, negotiation mechanics, error registry, recovery flows, and fixture obligations extending this summary with issue-#3 precision live in [`OSCP_MESSAGES.md`](OSCP_MESSAGES.md); the versioned domain model lives in [`DOMAIN_MODEL.md`](DOMAIN_MODEL.md) (ADR-0005). Where wording appears to conflict, this file plus ADR-0005 govern.
+
 ## Supported transports
 
 - **Desktop-local:** in-process or narrowly scoped Tauri IPC; no public listener is required.
