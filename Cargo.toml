@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "apps/desktop/src-tauri",
     "crates/openstream-action-sdk",
     "crates/openstream-domain",
     "crates/openstream-discovery",
@@ -29,6 +30,10 @@ missing_docs = "warn"
 
 [workspace.lints.clippy]
 all = "warn"
+
+[workspace.dependencies]
+tauri = "=2.11.5"
+tauri-build = "=2.6.3"
 
 [profile.release]
 codegen-units = 1
