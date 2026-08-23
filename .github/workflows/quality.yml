@@ -67,6 +67,12 @@ jobs:
           rustup show active-toolchain
           cargo --version
 
+      - name: Ensure rustfmt and clippy for the pinned toolchain
+        # Runner rustup uses the minimal profile; this materializes the
+        # lint/format components for exactly the toolchain rust-toolchain.toml
+        # pins instead of whatever the image ships.
+        run: rustup component add rustfmt clippy
+
       - name: Format check
         run: cargo fmt --all -- --check
 
@@ -104,6 +110,8 @@ jobs:
 
       - name: Install pnpm (pinned by packageManager field)
         uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+        with:
+          package_json_file: apps/desktop/ui/package.json
 
       - name: Set up Node.js 24
         uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
@@ -247,6 +255,8 @@ jobs:
 
       - name: Install pnpm (pinned by packageManager field)
         uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+        with:
+          package_json_file: apps/desktop/ui/package.json
 
       - name: Set up Node.js 24
         uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
