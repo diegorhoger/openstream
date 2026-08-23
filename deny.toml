@@ -1,0 +1,60 @@
+# cargo-deny configuration for the OpenStream workspace.
+# Enforced by `.github/workflows/quality.yml` (cargo-deny job) and documented
+# in `docs/engineering/CHECKS.md`. Licenses below are exactly the permissive
+# leaves required to satisfy every SPDX expression in Cargo.lock as of the M0
+# scaffold (issue #6); OR-expressions are satisfied when any listed branch is
+# allowed, so copyleft branches of OR groups are deliberately NOT allowed.
+
+[graph]
+all-features = true
+
+[licenses]
+version = 2
+confidence-threshold = 0.93
+allow = [
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-3-Clause",
+  "ISC",
+  "MIT",
+  "MPL-2.0",
+  "Unicode-3.0",
+  "Zlib",
+]
+
+[advisories]
+version = 2
+yanked = "deny"
+# All entries below are `unmaintained` maintenance-status notices (no
+# vulnerability class), introduced transitively by the pinned Tauri desktop
+# shell (tauri =2.11.5 / tauri-build =2.6.3): gtk-rs GTK3 bindings via
+# tao/wry on Linux, proc-macro-error via tauri-macros, and unic-* via
+# tauri-utils -> urlpattern. Upstream has no safe upgrade available yet.
+# Re-review whenever the workspace bumps Tauri; new advisories still fail.
+ignore = [
+  { id = "RUSTSEC-2024-0370", reason = "proc-macro-error unmaintained; transitive via pinned tauri-macros 2.6.3" },
+  { id = "RUSTSEC-2024-0411", reason = "atk unmaintained; transitive via tao/wry Linux GTK3 stack in tauri 2.11.5" },
+  { id = "RUSTSEC-2024-0412", reason = "gdk unmaintained; transitive via tao/wry Linux GTK3 stack in tauri 2.11.5" },
+  { id = "RUSTSEC-2024-0413", reason = "gtk3 bindings unmaintained; transitive via tao/wry Linux stack in tauri 2.11.5" },
+  { id = "RUSTSEC-2024-0414", reason = "gdk-pixbuf bindings unmaintained; transitive via tao/wry Linux stack in tauri 2.11.5" },
+  { id = "RUSTSEC-2024-0415", reason = "gio bindings unmaintained; transitive via tao/wry Linux stack in tauri 2.11.5" },
+  { id = "RUSTSEC-2024-0416", reason = "glib bindings unmaintained; transitive via tao/wry Linux stack in tauri 2.11.5" },
+  { id = "RUSTSEC-2024-0417", reason = "pango bindings unmaintained; transitive via tao/wry Linux stack in tauri 2.11.5" },
+  { id = "RUSTSEC-2024-0418", reason = "cairo-rs bindings unmaintained; transitive via tao/wry Linux stack in tauri 2.11.5" },
+  { id = "RUSTSEC-2024-0419", reason = "graphene-rs bindings unmaintained; transitive via tao/wry Linux stack in tauri 2.11.5" },
+  { id = "RUSTSEC-2024-0420", reason = "gdk-wayland/x11 bindings unmaintained; transitive via tao/wry Linux stack in tauri 2.11.5" },
+  { id = "RUSTSEC-2025-0075", reason = "unic-char-range unmaintained; transitive via tauri-utils -> urlpattern" },
+  { id = "RUSTSEC-2025-0080", reason = "unic-common unmaintained; transitive via tauri-utils -> urlpattern" },
+  { id = "RUSTSEC-2025-0081", reason = "unic-char-property unmaintained; transitive via tauri-utils -> urlpattern" },
+  { id = "RUSTSEC-2025-0098", reason = "unic-ucd-version unmaintained; transitive via tauri-utils -> urlpattern" },
+  { id = "RUSTSEC-2025-0100", reason = "unic-ucd-ident unmaintained; transitive via tauri-utils -> urlpattern" },
+]
+
+[bans]
+multiple-versions = "warn"
+highlight = "all"
+
+[sources]
+unknown-registry = "warn"
+unknown-git = "warn"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
