@@ -1,28 +1,10 @@
 /*
  * OpenStream Studio shell styles.
- * Tokens come from docs/design/DESIGN_SYSTEM.md (dark-first, studio-grade).
+ * Consumes the versioned token layer from ./tokens.css
+ * (source of truth: src/design/tokens.ts, authority docs/design/DESIGN_SYSTEM.md).
  */
 
-:root {
-  color-scheme: dark;
-
-  --canvas: #0b0d0e;
-  --surface-1: #14181a;
-  --surface-2: #1d2326;
-  --border: #343c40;
-  --text: #f5f7f8;
-  --text-muted: #aab3b8;
-  --signal: #2de2b4;
-  --live: #ff5d5d;
-  --warning: #ffb020;
-  --info: #58a6ff;
-
-  --radius-panel: 10px;
-  --space-8: 8px;
-  --space-16: 16px;
-  --space-24: 24px;
-  --space-32: 32px;
-}
+@import './tokens.css';
 
 * {
   box-sizing: border-box;
@@ -38,20 +20,14 @@ body {
   margin: 0;
   background: var(--canvas);
   color: var(--text);
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    Inter,
-    sans-serif;
-  font-size: 16px;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-16);
   line-height: 1.5;
 }
 
 :focus-visible {
-  outline: 3px solid var(--signal);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width) solid var(--signal);
+  outline-offset: var(--focus-ring-separation);
 }
 
 .shell {
@@ -62,17 +38,18 @@ body {
 }
 
 .shell-header {
-  margin-bottom: var(--space-24);
+  margin-block-end: var(--space-24);
 }
 
 .shell-title {
   margin: 0;
-  font-size: 32px;
+  font-size: var(--font-size-32);
   letter-spacing: 0.01em;
 }
 
 .shell-tagline {
-  margin: var(--space-8) 0 0;
+  margin-block-start: var(--space-8);
+  margin-block-end: 0;
   color: var(--text-muted);
 }
 
@@ -89,16 +66,16 @@ body {
 }
 
 .panel-title {
-  margin: 0 0 var(--space-16);
-  font-size: 20px;
+  margin-block: 0 var(--space-16);
+  font-size: var(--font-size-20);
 }
 
 .status-line {
   display: flex;
   align-items: center;
   gap: var(--space-8);
-  margin: 0 0 var(--space-16);
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  margin-block: 0 var(--space-16);
+  font-family: var(--font-mono);
 }
 
 .status-dot {
@@ -115,7 +92,7 @@ body {
 }
 
 .shell-footer {
-  margin-top: var(--space-24);
+  margin-block-start: var(--space-24);
 }
 
 .visually-hidden {

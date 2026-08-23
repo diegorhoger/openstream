@@ -1,0 +1,92 @@
+/*
+ * OpenStream design tokens as CSS custom properties.
+ * Mirrors src/design/tokens.ts 1:1; parity is enforced by
+ * src/testing/css-parity.test.ts. Authority: docs/design/DESIGN_SYSTEM.md.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* Color — dark theme (default) */
+  --canvas: #0b0d0e;
+  --surface-1: #14181a;
+  --surface-2: #1d2326;
+  --border: #343c40;
+  --text: #f5f7f8;
+  --text-muted: #aab3b8;
+  --signal: #2de2b4;
+  --live: #ff5d5d;
+  --warning: #ffb020;
+  --info: #58a6ff;
+
+  /* Typography */
+  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, Inter, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', 'SF Mono', Consolas, monospace;
+  --font-size-12: 12px;
+  --font-size-14: 14px;
+  --font-size-16: 16px;
+  --font-size-20: 20px;
+  --font-size-24: 24px;
+  --font-size-32: 32px;
+  --font-size-40: 40px;
+
+  /* Spacing */
+  --space-base: 4px;
+  --space-rhythm: 8px;
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-48: 48px;
+
+  /* Radii */
+  --radius-control: 6px;
+  --radius-panel: 10px;
+  --radius-deck-key: 14px;
+
+  /* Focus ring: 3 px signal with 2 px canvas separation */
+  --focus-ring-width: 3px;
+  --focus-ring-separation: 2px;
+
+  /* Motion budgets */
+  --motion-direct-manipulation-max: 160ms;
+  --motion-panel-transition: 200ms;
+
+  /* Minimum interactive geometry */
+  --size-target-min: 44px;
+  --size-deck-key-width: 88px;
+  --size-deck-key-height: 88px;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  /* Color — light theme override */
+  --canvas: #f4f6f7;
+  --surface-1: #ffffff;
+  --surface-2: #e9edef;
+  --border: #c7ced2;
+  --text: #111416;
+  --text-muted: #4d585e;
+  --signal: #087d65;
+  --live: #c82632;
+  --warning: #8a5700;
+  --info: #0969da;
+}
+
+/* Reduced motion: collapse every transition and animation to zero time.
+   The .no-motion class provides an explicit in-app no-animation mode. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-direct-manipulation-max: 0ms;
+    --motion-panel-transition: 0ms;
+  }
+}
+
+.no-motion,
+.no-motion * {
+  --motion-direct-manipulation-max: 0ms;
+  --motion-panel-transition: 0ms;
+}
