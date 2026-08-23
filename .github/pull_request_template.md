@@ -4,9 +4,10 @@ Closes #
 
 ## Dependency gate
 
+- Issue: #
 - Dependencies merged: yes/no
 - Base SHA:
-- Head SHA:
+- Expected head SHA:
 
 ## Scope
 
@@ -33,7 +34,7 @@ Out:
 - [ ] Accessibility evidence where applicable
 - [ ] Security tests where applicable
 
-Commands and results:
+Commands and exact-head results:
 
 ## Visual evidence
 
@@ -47,15 +48,17 @@ Screenshots/video, or N/A with reason.
 - [ ] No unrelated changes
 - [ ] No new implicit privilege
 - [ ] Required failures fail closed
-- [ ] Tests exercise failure paths
+- [ ] Tests exercise failure and crash-window paths
 - [ ] No secrets or personal data
 - [ ] Dependencies are pinned and reviewed
 
 ## Agent provenance
 
-- Planner:
-- Implementer:
-- Verifier:
-- Reviewer:
-- Security:
-- Evaluator:
+The values below are stable context IDs, not role names. They must identify distinct contexts.
+
+AGENT_PLANNER: pending
+AGENT_IMPLEMENTER: pending
+AGENT_VERIFIER: pending
+AGENT_REVIEWER: pending
+AGENT_SECURITY: n/a
+AGENT_EVALUATOR: pending

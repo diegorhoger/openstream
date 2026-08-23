@@ -1,15 +1,15 @@
 # Canonical roadmap
 
-Roadmap order is dependency order. Agents resume the oldest open pull request first; otherwise they select the lowest-numbered unblocked issue. Dates are intentionally absent until M1 velocity is measured.
+Roadmap order is dependency order. Agents resume the oldest open pull request first; otherwise they select the lowest-numbered unblocked issue. Dates remain absent until M1 velocity is measured.
 
 | Milestone | Target | Outcome |
 |---|---:|---|
-| M0 Foundation | v0.1.0 | Product contract, governance, threat model, protocols, design, and deterministic build skeleton |
-| M1 Local Desktop | v0.2.0-alpha | Useful local Stream Deck replacement with OBS-first magic loop |
-| M2 LAN Companion | v0.3.0-beta | Secure browser/PWA control from a supporting phone or tablet |
-| M3 Cloud | v0.4.0-private-beta | Accounts, E2EE sync, web editor, relay, teams, and subscriptions |
-| M4 Native Mobile | v0.5.0-beta | Native iOS/iPadOS and Android surfaces |
-| M5 Ecosystem/GA | v1.0.0 | Sandboxed plugins, registry, conformance, audits, and GA |
+| M0 Foundation | v0.1.0 | Product contract, governance, threat model, protocols, design, and build skeleton |
+| M1 Local Desktop | v0.2.0-alpha | Useful offline desktop Stream Deck replacement with OBS-first magic loop |
+| M2 OSCP Conformance | v0.3.0-contract | Public transport, pairing, simulators, generated clients, and conformance evidence; no phone PWA |
+| M3 Cloud Contracts | v0.4.0-contract | Public Cloud contracts, clients, portability suites, and private-release tracking; no hosted source |
+| M4 Native Mobile | v0.5.0-beta | Public native iOS/iPadOS and Android clients with secure LAN and optional relay |
+| M5 Ecosystem/GA | v1.0.0 | Sandboxed plugins, registry contracts, conformance, audits, and GA |
 | M6 Open Hardware | v1.1.0-alpha | Optional open device protocol, firmware, PCB/BOM, and reference device |
 
 ## M0 Foundation
@@ -41,34 +41,38 @@ Roadmap order is dependency order. Agents resume the oldest open pull request fi
 22. Installers, verified updates, checksums, and signing plan.
 23. Publish local desktop alpha.
 
-## M2 LAN Companion
+## M2 OSCP, pairing, and simulator conformance
 
-24. Versioned local control transport.
-25. Pairing, revocation, and device identity.
-26. Local discovery and manual fallback.
-27. Resilient sessions, idempotency, rate limits, and backpressure.
-28. Installable companion PWA shell.
-29. Phone/tablet deck UI.
-30. LAN security and multi-device end-to-end suite.
-31. Publish LAN companion beta.
+24. Implement the public OSCP codec and local transport testkit.
+25. Implement the versioned pairing state machine, identity, revocation, and vectors.
+26. Build deterministic Engine/surface simulators and discovery fixtures.
+27. Implement resilient-session, bounded-admission, recovery, rate, and backpressure conformance.
+28. Generate public Rust/TypeScript/Swift/Kotlin protocol clients.
+29. Publish cross-language golden fixtures and portability tests.
+30. Complete hostile-network, pairing, and multi-peer simulator security suite.
+31. Publish OSCP v0.3 contract and conformance release.
 
-## M3 Subscription Web
+M2 does not ship a browser/PWA LAN surface or claim phone/tablet control. It prepares public contracts and verified components consumed by Stage 2 Cloud and Stage 3 native mobile.
 
-32. Cloud tenancy and account authentication.
-33. End-to-end encrypted synchronization.
-34. Web editor and account/device dashboard.
-35. Secure remote relay and presence.
-36. Subscription billing integration.
-37. Entitlements, quotas, downgrade behavior, and customer portal.
-38. Streaming-provider OAuth credential framework.
-39. Data export, deletion, retention, and consent.
-40. Observability, backups, disaster recovery, and incident runbooks.
-41. Isolation, abuse, security, and load audit.
-42. Publish Cloud private beta.
+## M3 Public Cloud contracts and private-product tracking
 
-## M4 Native Mobile
+32. Publish tenant, account, session, and device API contracts plus fake service.
+33. Implement public E2EE sync client, schemas, vectors, and portability suite.
+34. Publish web-editor/account/device generated clients and model portability package.
+35. Implement public relay envelope/client, presence contract, and simulator.
+36. Publish billing-event and subscription lifecycle contracts in test fixtures only.
+37. Implement public entitlement, quota, downgrade, export, and local-forever invariant tests.
+38. Publish OAuth credential-residency and provider-client contracts.
+39. Publish data export, deletion, retention, and consent portability contracts.
+40. Publish privacy-safe telemetry/health contracts and disaster-recovery evidence schema.
+41. Complete public Cloud portability, isolation, abuse, and load conformance suite against fakes.
+42. Publish v0.4 Cloud contract release and record human-approved opaque private-beta readiness evidence.
 
-43. Shared mobile protocol SDK.
+No M3 issue authorizes hosted Cloud server, tenancy, billing, operations, private marketplace, deployment, or production credentials in this repository.
+
+## M4 Native mobile
+
+43. Shared Rust mobile protocol and security SDK.
 44. Native iOS/iPadOS shell.
 45. Native Android shell.
 46. Offline cache and reconnect reconciliation.
@@ -81,17 +85,17 @@ Roadmap order is dependency order. Agents resume the oldest open pull request fi
 ## M5 Ecosystem and v1
 
 52. Sandboxed plugin SDK.
-53. Signed plugin package, registry, moderation, and revocation.
+53. Signed plugin package and public registry/moderation contracts.
 54. Starter integrations and migration documentation.
 55. Cross-platform conformance and performance suite.
 56. GA accessibility, privacy, dependency, and security audit.
 57. Publish v1.0.0.
 
-## M6 Optional Open Hardware
+## M6 Optional open hardware
 
 58. Open physical-device protocol v1.
 59. Reference firmware and simulator.
 60. Reference PCB, BOM, enclosure, and assembly guide.
 61. Hardware/software conformance alpha.
 
-Issue bodies define exact dependencies and acceptance evidence. Later milestones do not authorize premature implementation.
+Issue bodies define exact dependencies and evidence. Later milestones do not authorize premature implementation.

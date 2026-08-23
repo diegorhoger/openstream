@@ -1,16 +1,18 @@
-# ADR-0004: Community core and commercial Cloud
+# ADR-0004: Public Community products and private hosted Cloud
 
-Status: proposed  
+Status: accepted decision A1  
 Date: 2026-08-23
 
 ## Decision
 
-The local Engine, Studio, LAN surface, protocols, portable formats, SDKs, and reference clients are Apache-2.0 in this public repository. The optional hosted Cloud implementation is a separate commercial product. Interoperability contracts and full user export remain public.
+The local Engine, Studio, public protocols, portable formats, generated clients, simulators, conformance tests, plugin SDK, and native mobile clients are Apache-2.0 in this repository.
+
+Hosted Cloud server, tenancy, billing, operations, private marketplace, deployment configuration, and customer-data implementation live in a separate private repository. This public repository keeps Cloud contracts, clients, fake services, cryptographic vectors, portability tests, and tracking/meta issues.
 
 ## Consequences
 
-Community use is complete rather than trialware. Revenue comes from hosted coordination, reliability, collaboration, history, relay, and support. Trademark and service rights remain separate from the code license.
+Community desktop use is complete rather than trialware. Revenue comes from hosted coordination, reliability, collaboration, history, relay, managed distribution, and support. Public roadmap issues cannot import or request private hosted source. Cross-repository readiness is recorded only as opaque versioned evidence.
 
 ## Reversal
 
-Licensing changes require legal review and a human hard-stop before external contributions are accepted under new terms.
+Any source-boundary or licensing change requires legal review, a new ADR, compatibility/export analysis, and a human hard stop.
