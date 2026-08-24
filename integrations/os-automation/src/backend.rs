@@ -20,7 +20,9 @@
 //! Error values carry structural data only (operation class, platform tag).
 //! No OS error text ever enters an error channel.
 
-use crate::spec::{KeyValue, Modifier, ShortcutSpec};
+use crate::spec::ShortcutSpec;
+#[cfg(target_os = "windows")]
+use crate::spec::{KeyValue, Modifier};
 use core::fmt;
 
 /// Static platform tag used in `Unsupported` reports.
