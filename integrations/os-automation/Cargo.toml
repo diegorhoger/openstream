@@ -1,0 +1,23 @@
+[package]
+name = "openstream-os-automation"
+description = "OS automation adapters (issue #10: keyboard shortcut synthesis). Windows ships a real SendInput-class backend via the audited enigo wrapper; every other platform reports honest Unsupported with no fallback. No input capture or key listening of any kind."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+openstream-domain = { path = "../../crates/openstream-domain" }
+openstream-engine = { path = "../../crates/openstream-engine" }
+serde_json = "=1.0.151"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# Keyboard synthesis backend. All FFI lives inside this audited dependency;
+# this crate keeps the workspace-wide `unsafe_code = "forbid"` discipline.
+# Default features are disabled so no Linux display-server stack (X11 or
+# Wayland) is compiled anywhere else: unsupported platforms must report
+# `Unsupported`, never fall back.
+enigo = { version = "=0.6.1", default-features = false }
