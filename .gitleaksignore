@@ -1,0 +1,15 @@
+# Gitleaks false-positive adjudications.
+#
+# Each line pins one finding by its gitleaks fingerprint
+# (<commit>:<file>:<rule>:<line>). Entries are added only with a written
+# rationale here and in the corresponding PR.
+#
+# Issue #8: the flagged strings are synthetic capability-grammar FIXTURES
+# in openstream-domain unit tests (the internal-only identifier spelled
+# `secret.read:` plus a made-up reference value). They are not credentials;
+# nothing real was committed. Commit 89e875e additionally removed the
+# whole-string literal form from the source so future edits cannot regress,
+# but the scanner walks every commit in a pull request, so the historical
+# fingerprints stay adjudicated here.
+5e528392ab98030f27f1d2809c9146dacc753686:crates/openstream-domain/src/capability.rs:generic-api-key:832
+5e528392ab98030f27f1d2809c9146dacc753686:crates/openstream-domain/src/capability.rs:generic-api-key:833

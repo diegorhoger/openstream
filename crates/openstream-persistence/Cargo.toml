@@ -1,6 +1,6 @@
 [package]
 name = "openstream-persistence"
-description = "Repository traits plus SQLite WAL storage with explicit migrations. Raw secret values never persist here (TECHNICAL_SPEC §6)."
+description = "Repository traits, SQLite storage rules, and the OS credential-vault boundary. Raw secret values never persist in SQLite; they stay in OS credential storage (TECHNICAL_SPEC §4, §6)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,3 +8,17 @@ license.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+openstream-domain = { path = "../openstream-domain" }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# Windows Credential Manager backend. Default features are disabled so no
+# other platform backend (macOS keychain, Linux secret-service/keyutils) is
+# compiled: unsupported platforms must report `Unsupported`, never fall back.
+keyring = { version = "=3.6.3", default-features = false, features = [
+    "windows-native",
+] }
+
+[dev-dependencies]
+uuid = { version = "=1.25.0", features = ["v7"] }
