@@ -2157,6 +2157,13 @@ dependencies = [
 [[package]]
 name = "openstream-engine"
 version = "0.1.0"
+dependencies = [
+ "openstream-domain",
+ "proptest",
+ "serde",
+ "serde_json",
+ "uuid",
+]
 
 [[package]]
 name = "openstream-integrations"
