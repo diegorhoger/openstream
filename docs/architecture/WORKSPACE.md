@@ -41,6 +41,7 @@ milestones. Naming matches TECHNICAL_SPEC §3 exactly.
 | `crates/openstream-testkit/` | skeleton |
 | `apps/desktop/src-tauri/` | Tauri 2 composition root, deny-by-default capabilities |
 | `apps/desktop/ui/` | React + strict TypeScript + Vite shell (TECHNICAL_SPEC §2) |
+| `integrations/os-automation/` | keyboard shortcut adapter (issue #10): Windows real backend, honest Unsupported elsewhere |
 
 Remaining TECHNICAL_SPEC §3 directories (`apps/ios`, `apps/android`,
 `integrations/`, `proto/`, `wit/`, `packages/`, `simulators/`,

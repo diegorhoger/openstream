@@ -109,7 +109,15 @@ Enforced as of issue #8 (`openstream-domain` grant/capability/audit modules, `op
 - `secret.read:<secret_ref>` is internal-only and rejects at manifest declaration, grant creation, and evaluation (§4); references validate against one structural grammar shared with the vault boundary.
 - Secret values exist only behind the OS credential-vault abstraction: Windows ships a real Credential Manager backend; macOS/Linux report explicit `Unsupported` with no fallback storage. Values are never serializable by domain types and their buffers zeroize on drop (TB6, TM-LOG-01).
 
-Adapter-side rows above (OBS, keyboard/media, launch/process, clipboard, filesystem, network, MIDI/OSC, notifications) remain contracts for their named milestone issues; this list covers only the grant/evidence/vault substrate those milestones build on.
+Enforced as of issue #10 (`integrations/os-automation` keyboard shortcut adapter):
+
+- `os.keyboard.emit` ships its first concrete adapter behind engine action type `os.keyboard.shortcut`: typed, bounded shortcut configuration (closed key vocabulary, ≤4 chords × ≤4 tokens) validated fail closed at authoring time and revalidated per dispatch; untyped or off-vocabulary input fails with a typed error and never reaches synthesis.
+- Explicit grant remains mandatory: an empty ledger denies before any dispatch (`NoActiveGrant`); revocation applies at the next evaluation; a scoped grant never covers an unqualified request.
+- Platform matrix (honest reporting): Windows synthesizes through a real SendInput-class backend (pinned audited `enigo` wrapper; this crate stays `unsafe_code = "forbid"`). macOS and Linux return explicit typed `unsupported_platform` failures with no fallback of any kind. Wayland limitation: global synthetic input has no stable compositor-independent protocol under Wayland's security model, so Linux reports Unsupported regardless of session type until a reviewed platform milestone ships a backend.
+- Window-scoped delivery is not implemented this milestone: the registration declares exactly the unqualified scope, so app-qualified nodes reject at the manifest intersection (`not_requested_by_manifest`) before dispatch, and the port refuses them defensively as well. No silent foreground delivery under a scoped grant.
+- The adapter only ever sends synthetic events; no capture, hooking, polling, or logging of user input exists anywhere in it.
+
+Adapter-side rows above (OBS, keyboard/media, launch/process, clipboard, filesystem, network, MIDI/OSC, notifications): `os.keyboard.emit` is now enforced per the paragraph above; the remaining rows remain contracts for their named milestone issues.
 
 ## References
 
