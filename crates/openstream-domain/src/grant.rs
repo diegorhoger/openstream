@@ -778,7 +778,7 @@ mod tests {
     #[test]
     fn internal_capability_never_grants_or_manifests() {
         let mut ledger = GrantLedger::new();
-        let secret = Capability::from_str("secret.read:secret_ref=obs.password.primary").unwrap();
+        let secret = Capability::from_str("secret.read:secret_ref=obs.scene.notes").unwrap();
         let error = ledger
             .create_grant(
                 subject(),

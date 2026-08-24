@@ -617,9 +617,9 @@ mod tests {
                 },
             ),
             (
-                "secret.read:secret_ref=obs.password.primary",
+                "secret.read:secret_ref=obs.scene.notes",
                 Capability::SecretRead {
-                    secret_ref: crate::secret::SecretRef::from_str("obs.password.primary").unwrap(),
+                    secret_ref: crate::secret::SecretRef::from_str("obs.scene.notes").unwrap(),
                 },
             ),
         ];
@@ -812,7 +812,7 @@ mod tests {
 
     #[test]
     fn internal_only_flag_is_exact() {
-        let secret = parse("secret.read:secret_ref=obs.password.primary").unwrap();
+        let secret = parse("secret.read:secret_ref=obs.scene.notes").unwrap();
         assert!(secret.is_internal());
         let midi = parse("midi.send:device=stagepad").unwrap();
         assert!(!midi.is_internal());
@@ -821,11 +821,8 @@ mod tests {
     #[test]
     fn secret_read_qualifier_uses_strict_reference_grammar() {
         // Valid references round-trip through the canonical string.
-        let secret = parse("secret.read:secret_ref=obs.password.primary").unwrap();
-        assert_eq!(
-            secret.to_string(),
-            "secret.read:secret_ref=obs.password.primary"
-        );
+        let secret = parse("secret.read:secret_ref=obs.scene.notes").unwrap();
+        assert_eq!(secret.to_string(), "secret.read:secret_ref=obs.scene.notes");
         // Grammar violations reject fail closed without echoing input.
         for raw in [
             "secret.read:secret_ref=Bad Ref",

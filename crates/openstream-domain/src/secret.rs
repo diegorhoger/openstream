@@ -2,7 +2,7 @@
 //! `THREAT_MODEL.md` TB6).
 //!
 //! - [`SecretRef`] is a *structural address* of one secret in OS credential
-//!   storage (e.g. `obs.password.primary`). It is a name, never secret
+//!   storage (e.g. `obs.scene.notes`). It is a name, never secret
 //!   material, and its grammar is validated fail closed.
 //! - [`SecretValue`] wraps the actual value bytes for the short path between
 //!   the OS credential vault and the integration broker. Its [`fmt::Debug`]
@@ -214,7 +214,7 @@ mod tests {
 
     #[test]
     fn references_validate_strictly_and_round_trip() {
-        for raw in ["obs.password.primary", "api-key", "peer0.token.v3_x", "a"] {
+        for raw in ["obs.scene.notes", "inbox-7", "peer0.device.v3_x", "a"] {
             let parsed = SecretRef::from_str(raw).unwrap();
             assert_eq!(parsed.as_str(), raw);
             assert_eq!(parsed.to_string(), raw);
@@ -252,9 +252,9 @@ mod tests {
 
     #[test]
     fn references_serialize_only_the_structural_name() {
-        let reference = SecretRef::from_str("obs.password.primary").unwrap();
+        let reference = SecretRef::from_str("obs.scene.notes").unwrap();
         let json = serde_json::to_string(&reference).unwrap();
-        assert_eq!(json, "\"obs.password.primary\"");
+        assert_eq!(json, "\"obs.scene.notes\"");
         let back: SecretRef = serde_json::from_str(&json).unwrap();
         assert_eq!(back, reference);
         assert!(serde_json::from_str::<SecretRef>("\"Bad Ref\"").is_err());
