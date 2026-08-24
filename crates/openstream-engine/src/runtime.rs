@@ -1577,20 +1577,31 @@ fn node_failed(
             if run.first_failure.is_none() {
                 run.first_failure = Some(reason);
             }
-            begin_compensation_drain(run);
+            begin_compensation_drain(ctx, run);
         }
     }
 }
 
-fn begin_compensation_drain(run: &mut ExecutionRun) {
+fn begin_compensation_drain(ctx: &mut DriverCtx<'_>, run: &mut ExecutionRun) {
     run.compensating = true;
     for branch in &mut run.branches {
         if !matches!(branch.state, BranchState::Exited) {
             branch.state = BranchState::Exited;
         }
     }
-    // Slot waiters never dispatched; their preparations close cleanly.
-    run.slot_waiters.clear();
+    // Slot waiters never dispatched, but their durable prepared records
+    // exist. Resolve them exactly like `abort_all` does before dropping
+    // them: an unresolved prepared record is the crash-gap window and would
+    // later flip the persisted terminal to `outcome_unknown` during the
+    // recovery scan, breaking one-terminal-state integrity
+    // (`OSCP_MESSAGES.md` §8).
+    for waiter in std::mem::take(&mut run.slot_waiters) {
+        let _ = ctx.journal.resolve_prepared(
+            run.execution_id,
+            &run.node_key(waiter.node),
+            waiter.attempt,
+        );
+    }
 }
 
 fn on_branch_exit(_ctx: &mut DriverCtx<'_>, run: &mut ExecutionRun, branch_idx: usize) {

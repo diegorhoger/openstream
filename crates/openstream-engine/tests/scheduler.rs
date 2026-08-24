@@ -422,6 +422,135 @@ fn compensate_policy_unwinds_succeeded_effects_in_reverse() {
     assert!(comp_keys[0].ends_with(":compensation"));
 }
 
+/// Regression for gate finding F1: under cap saturation, slot waiters hold
+/// durable prepared records; the compensation drain must resolve them
+/// exactly like `abort_all`, or `recover_outcome_unknown()` later flips the
+/// persisted terminal to `outcome_unknown` (one-terminal-state integrity,
+/// OSCP_MESSAGES §8).
+#[test]
+fn compensation_drain_resolves_saturated_slot_waiters_before_recovery() {
+    let harness = Harness::new();
+    let mut registry = ActionRegistry::new();
+
+    // Six delayed effects on ONE adapter saturate the per-action cap of 4:
+    // n0..n3 dispatch immediately, n4/n5 park as slot waiters holding
+    // prepared records. n3 fails late; Compensate policy drains.
+    let port = ScriptedPort::new(
+        vec![
+            Step::Delay(50),
+            Step::Delay(50),
+            Step::Delay(50),
+            Step::DelayFail(50, "boom"),
+            Step::Delay(50),
+            Step::Delay(50),
+            Step::Delay(50),
+        ],
+        Arc::clone(&harness.events),
+        harness.clock.clone(),
+    );
+    register_action(
+        &mut registry,
+        "act.x",
+        vec![midi("stagepad")],
+        false,
+        true, // safe-compensation declared
+        port,
+    );
+
+    let mut raw = RawGraph::new(FailurePolicy::Compensate);
+    raw.add_node(node_key("fan"), NodeKind::Parallel).unwrap();
+    for index in 0..6 {
+        let key = format!("n{index}");
+        raw.add_node(node_key(&key), action("act.x", midi("stagepad")))
+            .unwrap();
+        raw.add_edge(node_key("fan"), node_key(&key), EdgeKindInput::Sequence);
+        // Every action carries its dedicated compensate node + link.
+        let comp_key = format!("c{index}");
+        raw.add_node(node_key(&comp_key), NodeKind::Compensate)
+            .unwrap();
+        raw.add_edge(
+            node_key(&key),
+            node_key(&comp_key),
+            EdgeKindInput::CompensationLink,
+        );
+    }
+    raw.entry(node_key("fan"));
+    let graph = Arc::new(ValidatedGraph::build(&raw, &registry).unwrap());
+
+    // Instrumented journal so persisted lifecycle transitions are visible.
+    let mut runtime = harness.runtime_with_journal(
+        registry,
+        ledger_with(&[midi("stagepad")]),
+        InstrumentedJournal::new(Arc::clone(&harness.events), harness.clock.clone()),
+    );
+    let receipt = run_ok(&mut runtime, &harness, &graph);
+
+    // Terminal stays the typed original failure — not outcome_unknown.
+    assert_eq!(receipt.state.token(), "failed");
+    match receipt.state {
+        TerminalState::Failed {
+            reason: openstream_engine::FailureReason::AdapterFailed { ref code },
+        } => assert_eq!(code, "boom"),
+        other => panic!("expected adapter failure, got {other:?}"),
+    }
+
+    // Saturation held: only the first wave dispatched (4), the waiters
+    // never did; three succeeded effects were compensated in reverse.
+    let snapshot = harness.events.snapshot();
+    let dispatched: Vec<&str> = snapshot
+        .iter()
+        .filter_map(|event| match event {
+            Event::Dispatch { node, .. } => Some(node.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(dispatched.len(), 7, "4 first-wave + 3 compensations");
+    assert!(!dispatched.iter().any(|node| *node == "n4" || *node == "n5"));
+    let comps: Vec<String> = receipt
+        .effects
+        .iter()
+        .filter(|effect| effect.is_compensation)
+        .map(|effect| effect.node_key.to_string())
+        .collect();
+    assert_eq!(
+        comps,
+        vec!["c2".to_string(), "c1".to_string(), "c0".to_string()],
+        "reverse completion order unwind"
+    );
+
+    // THE REGRESSION: recovery must find nothing to flip. Before the fix
+    // the drained waiters' prepared records surfaced here as
+    // outcome_unknown and overwrote the persisted `failed` terminal.
+    assert_eq!(
+        runtime.recover_outcome_unknown().unwrap(),
+        Vec::<openstream_engine::ExecutionId>::new(),
+        "drained slot waiters must not leave orphan prepared records"
+    );
+    let lifecycle_tokens: Vec<&str> = snapshot
+        .iter()
+        .filter_map(|event| match event {
+            Event::Lifecycle { lifecycle, .. } => Some(*lifecycle),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        lifecycle_tokens
+            .iter()
+            .filter(|token| **token == "outcome_unknown")
+            .count(),
+        0,
+        "no corrective unknown evidence may exist for a failed execution"
+    );
+    assert_eq!(
+        lifecycle_tokens
+            .iter()
+            .filter(|token| **token == "failed")
+            .count(),
+        1,
+        "exactly one persisted terminal state"
+    );
+}
+
 #[test]
 fn compensate_policy_requires_links_and_safe_declaration() {
     let harness = Harness::new();
