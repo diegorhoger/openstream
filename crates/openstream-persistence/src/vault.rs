@@ -30,6 +30,7 @@ use std::fmt;
 
 /// Service namespace under which every OpenStream entry lives in the OS
 /// credential store; each secret reference becomes one entry inside it.
+#[cfg(target_os = "windows")]
 const VAULT_SERVICE: &str = "OpenStream";
 
 /// The one approved operation a vault call performs. Carried by errors so
