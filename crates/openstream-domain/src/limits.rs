@@ -29,6 +29,33 @@ pub const MAX_CONTROLS_PER_PAGE: usize = 1024;
 /// Maximum number of decks referenced by one profile.
 pub const MAX_DECKS_PER_PROFILE: usize = 128;
 
+/// Maximum UTF-8 byte length of a whole serialized capability identifier
+/// (grammar per `CAPABILITY_TAXONOMY.md` §1).
+pub const MAX_CAPABILITY_BYTES: usize = 1024;
+
+/// Maximum UTF-8 byte length of one qualifier value inside a capability.
+pub const MAX_QUALIFIER_VALUE_BYTES: usize = 256;
+
+/// Maximum number of simultaneously active grant records held by the
+/// in-memory grant ledger. Persistence arrives with #15; overflowing this
+/// bound fails closed instead of dropping evidence.
+pub const MAX_ACTIVE_GRANTS: usize = 1024;
+
+/// Maximum number of audit events retained by the in-memory append-only
+/// audit log. Overflow fails closed (`AuditLogFull` behavior via
+/// [`crate::error::DomainError::LimitExceeded`]); durable persistence is #15.
+pub const MAX_AUDIT_EVENTS: usize = 10_000;
+
+/// Maximum UTF-8 byte length of a secret reference (the structural address
+/// of one entry in OS credential storage).
+pub const MAX_SECRET_REF_BYTES: usize = 128;
+
+/// Maximum UTF-8 byte length of one secret value. Pinned to the tightest
+/// supported platform credential blob limit (Windows `CRED_MAX_CREDENTIAL_
+/// BLOB_SIZE`, 5 * 512 bytes) so every backend shares one contract; larger
+/// values reject fail closed instead of silently succeeding per platform.
+pub const MAX_SECRET_VALUE_BYTES: usize = 2560;
+
 /// Validates a user-text field (title, profile name, control label): not
 /// empty after trimming, at most [`MAX_TEXT_BYTES`] UTF-8 bytes. Returns the
 /// typed error naming only the structural field, never the content.

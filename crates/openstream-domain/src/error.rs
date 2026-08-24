@@ -69,6 +69,53 @@ pub enum DomainError {
     PolicyNotAllowedForKind,
     /// Structural edit could not produce a new monotonic revision.
     RevisionOverflow,
+    /// A capability identifier failed fail-closed parsing/validation
+    /// (`CAPABILITY_TAXONOMY.md` §1). The reason is a structural code, never
+    /// the rejected input text.
+    InvalidCapability {
+        /// Structural reason code (wildcard forbidden, unknown capability,
+        /// bad qualifier, ...).
+        reason: &'static str,
+    },
+    /// An internal-only capability (`secret.*`) was offered where only
+    /// grantable capabilities are admitted: grant creation or manifest
+    /// declaration. Always fails closed (taxonomy §4).
+    InternalCapabilityNotGrantable,
+    /// A grant was created without every consent kind its capability class
+    /// requires (taxonomy §3 consent column). Names the first missing kind.
+    ConsentInsufficient {
+        /// Structural name of the first missing consent kind.
+        missing: &'static str,
+    },
+    /// The referenced grant does not exist (never created, narrowed-away id
+    /// reuse is impossible, or already revoked and deleted).
+    GrantNotFound,
+    /// A narrowing operation tried to widen or alter the qualifier scope.
+    NarrowingWouldWiden,
+    /// A narrowing operation targeted a different capability kind than the
+    /// stored grant.
+    NarrowingKindMismatch,
+    /// A caller-supplied timestamp was negative (fail closed; UTC epoch
+    /// milliseconds are supplied by the clock owner, never measured here).
+    InvalidTimestamp,
+    /// A subject reference violated the strict `kind:id` grammar.
+    InvalidSubjectRef {
+        /// Structural reason code, never the rejected input.
+        reason: &'static str,
+    },
+    /// A secret reference violated the strict dotted-segment grammar
+    /// (`crate::secret::SecretRef`). The reason is structural only.
+    InvalidSecretRef {
+        /// Structural reason code, never the rejected input.
+        reason: &'static str,
+    },
+    /// A secret value violated the fail-closed adoption rules (empty,
+    /// NUL byte, or beyond the platform blob bound). Never serializes or
+    /// echoes the rejected value.
+    InvalidSecretValue {
+        /// Structural reason code, never the rejected input.
+        reason: &'static str,
+    },
 }
 
 /// Structural reasons a folder path is invalid. Matchable without exposing
@@ -123,6 +170,36 @@ impl fmt::Display for DomainError {
                 write!(f, "interaction policy not allowed for this control kind")
             }
             Self::RevisionOverflow => write!(f, "deck revision cannot increase further"),
+            Self::InvalidCapability { reason } => {
+                write!(f, "invalid capability identifier: {reason}")
+            }
+            Self::InternalCapabilityNotGrantable => write!(
+                f,
+                "internal-only capability (secret.*) is never grantable (fail closed)"
+            ),
+            Self::ConsentInsufficient { missing } => {
+                write!(f, "grant lacks required consent kind `{missing}`")
+            }
+            Self::GrantNotFound => write!(f, "grant record not found"),
+            Self::NarrowingWouldWiden => {
+                write!(f, "narrowing operation would widen the qualifier scope")
+            }
+            Self::NarrowingKindMismatch => {
+                write!(
+                    f,
+                    "narrowing operation targeted a different capability kind"
+                )
+            }
+            Self::InvalidTimestamp => write!(f, "timestamp must be non-negative epoch millis"),
+            Self::InvalidSubjectRef { reason } => {
+                write!(f, "invalid subject reference: {reason}")
+            }
+            Self::InvalidSecretRef { reason } => {
+                write!(f, "invalid secret reference: {reason}")
+            }
+            Self::InvalidSecretValue { reason } => {
+                write!(f, "invalid secret value: {reason}")
+            }
         }
     }
 }

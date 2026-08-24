@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 36da80a1f618c7415e5fa140bff4eaee6e8397ab8c5487fa6adc2e7aea0afbf1 # shrinks to host = "a--", port_a = 1, port_b = 2
+cc 24c4113768ff4cada43fa7479db275b16509ae52789f8fc20d965db2e2431630 # shrinks to cap = MidiSend { device: "\\" }
+cc f1bf4a71796e7a7676331e815e021fa4d4c0f4fe59757aacfae033ffa11f2a3f # shrinks to cap = MidiSend { device: " " }

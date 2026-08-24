@@ -100,6 +100,17 @@ Registry integrity rules:
 
 At base commit `53ecf5027f409be8d9856b4c404cad40600650ec` this repository contains no runtime enforcement. Every "Enforcement" cell above is a contract that the named milestone's issue, tests, and independent security review must satisfy. This section must be updated, not deleted, as controls become enforced.
 
+Enforced as of issue #8 (`openstream-domain` grant/capability/audit modules, `openstream-persistence` vault boundary):
+
+- Capability identifiers parse against the closed v1 vocabulary only; unknown identifiers, wildcards, unknown/duplicate qualifier keys, and grammar violations reject fail closed at every entry point (§1).
+- Deny-by-default grants are typed records created only with the consent class each registry row requires (§5 Consent column); narrowing can never widen; revocation (per grant, per subject, revoke-all) deletes records and applies at the next evaluation without restart (§3).
+- Effective authority is recomputed per request as manifest ∩ user-grant ∩ instance-narrowing; platform capability, workspace policy, and runtime-context layers arrive with their own milestones and still deny downstream when absent (§2).
+- Audit evidence events (grant create/narrow/revoke plus execution journal states) are append-only and carry qualifier-free capability kinds only; no labels, configs, paths, URLs, tokens, scene names, or qualifier values enter an event (§3 Evidence).
+- `secret.read:<secret_ref>` is internal-only and rejects at manifest declaration, grant creation, and evaluation (§4); references validate against one structural grammar shared with the vault boundary.
+- Secret values exist only behind the OS credential-vault abstraction: Windows ships a real Credential Manager backend; macOS/Linux report explicit `Unsupported` with no fallback storage. Values are never serializable by domain types and their buffers zeroize on drop (TB6, TM-LOG-01).
+
+Adapter-side rows above (OBS, keyboard/media, launch/process, clipboard, filesystem, network, MIDI/OSC, notifications) remain contracts for their named milestone issues; this list covers only the grant/evidence/vault substrate those milestones build on.
+
 ## References
 
 - `docs/security/THREAT_MODEL.md` - threats mitigated by these capabilities

@@ -91,10 +91,20 @@ entity_id!(
     ControlId,
     "control"
 );
+entity_id!(
+    /// Identifier of one recorded capability grant.
+    GrantId,
+    "grant"
+);
+entity_id!(
+    /// Identifier of one engine execution (evidence subject in audit events).
+    ExecutionId,
+    "execution"
+);
 
 #[cfg(test)]
 mod tests {
-    use super::{ControlId, DeckId, PageId, ProfileId, WorkspaceId};
+    use super::{ControlId, DeckId, ExecutionId, GrantId, PageId, ProfileId, WorkspaceId};
     use std::str::FromStr as _;
 
     const V4: &str = "3b241101-e2bb-4255-8caf-4136c566a962";
@@ -164,6 +174,8 @@ mod tests {
     id_behavior!(deck_id_behavior, DeckId);
     id_behavior!(page_id_behavior, PageId);
     id_behavior!(control_id_behavior, ControlId);
+    id_behavior!(grant_id_behavior, GrantId);
+    id_behavior!(execution_id_behavior, ExecutionId);
 
     #[test]
     fn generated_ids_are_unique() {
