@@ -23,9 +23,11 @@ serde_json = "=1.0.151"
 enigo = { version = "=0.6.1", default-features = false }
 
 # Default-handler file/URL opening for the launch adapters. All FFI
-# (ShellExecuteW) lives inside this audited dependency. Default features
-# stay enabled deliberately: `shellexecute-on-windows` replaces any legacy
-# command-interpreter launcher with direct ShellExecuteW, and the legacy
-# `cmd /c start` path only exists behind the never-enabled `insecure`
+# (ShellExecuteW) lives inside this audited dependency. The crate ships NO
+# default features; the opt-in `shellexecute-on-windows` feature is enabled
+# deliberately so file/URL opens take the direct ShellExecuteW path with no
+# shell intermediary (backend calls use `that_detached`, never the default
+# powershell.exe Start-Process route of the plain API). The legacy
+# command-interpreter path only exists behind the never-enabled `insecure`
 # feature.
-open = "=5.4.1"
+open = { version = "=5.4.1", features = ["shellexecute-on-windows"] }

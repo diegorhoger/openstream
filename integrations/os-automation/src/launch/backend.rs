@@ -11,9 +11,10 @@
 //!   interpolation, zero arguments this milestone, cleared environment,
 //!   explicit working directory, nulled standard handles), and file/URL
 //!   opens delegate to ShellExecute-class default-handler resolution via
-//!   the pinned `open =5.4.1` wrapper. The wrapper's default features stay
-//!   enabled deliberately: its `shellexecute-on-windows` feature replaces
-//!   any legacy command-interpreter launcher with direct `ShellExecuteW`.
+//!   the pinned `open =5.4.1` wrapper with its opt-in
+//!   `shellexecute-on-windows` feature enabled: opens run the direct
+//!   `ShellExecuteW` path through the detached launcher (`that_detached`),
+//!   with no shell intermediary anywhere.
 //! - Every other platform gets [`UnsupportedLaunchBackend`]: an explicit,
 //!   documented stub whose operations return [`LaunchError::Unsupported`].
 //!   No fallback of any kind — honest capability reporting per repository
@@ -115,7 +116,9 @@ pub trait LaunchBackend: fmt::Debug + Send + Sync {
 /// Real Windows backend. Application launches use direct CreateProcess-
 /// class spawning of the approved executable path (resolved from the
 /// selection map this backend is constructed with); file/URL opens use the
-/// pinned `open =5.4.1` wrapper (ShellExecuteW inside the dependency).
+/// pinned `open =5.4.1` wrapper's detached launcher with its opt-in
+/// `shellexecute-on-windows` feature enabled — direct `ShellExecuteW`, no
+/// shell intermediary.
 ///
 /// Launch posture (SECURITY.md process-execution constraints):
 ///
@@ -150,7 +153,7 @@ impl WindowsLaunchBackend {
         if has_local_existence && !std::path::Path::new(raw).exists() {
             return Err(LaunchError::MissingTarget);
         }
-        open::that(raw).map_err(|_| LaunchError::PlatformFailure)
+        open::that_detached(raw).map_err(|_| LaunchError::PlatformFailure)
     }
 }
 
