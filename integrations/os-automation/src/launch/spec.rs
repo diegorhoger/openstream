@@ -33,10 +33,22 @@
 //!   a scheme matched case-insensitively against the policy allowlist (a
 //!   closed [`UrlScheme`] vocabulary — arbitrary custom schemes are never
 //!   admissible).
-//! - File targets whose extension looks executable/scriptable refuse as a
-//!   policy violation: default-handler launching of such targets would
-//!   collapse into direct process execution, which belongs exclusively to
-//!   the separately gated `process.execute` registry row.
+//! - Every accepted target token must embed verbatim into its capability
+//!   qualifier value, so bytes the domain qualifier grammar forbids reject
+//!   with explicit typed errors: paths refuse commas and surrounding
+//!   whitespace ([`LaunchConfigError::PathQualifierUnsafe`]); URLs refuse
+//!   wildcards (`?`, `*`) and commas
+//!   ([`LaunchConfigError::UrlQualifierUnsafe`]). Approved capabilities
+//!   therefore always round-trip byte-exact through serialization.
+//! - File targets whose extension looks executable/scriptable — including
+//!   every interpreter-associated class (`.py`/`.pyw` through Python,
+//!   `.bat`/`.cmd` through the command interpreter, `.ps1` through
+//!   PowerShell, WSH classes, and more) — refuse as a policy violation:
+//!   default-handler launching of such targets would collapse into direct
+//!   process execution, which belongs exclusively to the separately gated
+//!   `process.execute` registry row. The lookup normalizes trailing
+//!   dots/spaces exactly like Win32 path resolution, so aliases such as
+//!   `payload.py.` cannot bypass it.
 //!
 //! The same validators run at registration time ([`LaunchBinding`]), and
 //! again per dispatch inside the port ([`crate::launch::port`]), so no
@@ -145,8 +157,14 @@ impl LaunchPolicy {
         Err(LaunchConfigError::PolicySchemeNotAllowed)
     }
 
-    /// Checks a file target against the executable/script extension denial
-    /// list (defense in depth; see module docs).
+    /// Checks a file target against the executable/script/interpreter
+    /// extension denial list (defense in depth; see module docs).
+    ///
+    /// The final file name is normalized the way Win32 path resolution
+    /// normalizes it (trailing dots and spaces are stripped before
+    /// association lookup), so aliases such as `payload.py.` or `run.exe.`
+    /// resolve onto their dangerous real extensions and deny instead of
+    /// bypassing the list.
     ///
     /// # Errors
     /// [`LaunchConfigError::PolicyExecutableTarget`] when the final
@@ -158,6 +176,10 @@ impl LaunchPolicy {
             Some(index) => &lowered[index + 1..],
             None => lowered.as_str(),
         };
+        // Mirror Win32 normalization: trailing dots/spaces vanish before
+        // the shell resolves the file association, so strip them here or
+        // `evil.exe.` would dodge the deny-list while executing `evil.exe`.
+        let file_name = file_name.trim_end_matches(['.', ' ']);
         let Some((_, extension)) = file_name.rsplit_once('.') else {
             return Ok(());
         };
@@ -168,10 +190,15 @@ impl LaunchPolicy {
     }
 }
 
-/// Extensions whose default-handler launch would execute program logic
-/// rather than open a document. Defense in depth only: the primary control
-/// is exact-target explicit selection plus per-dispatch revalidation.
-const BLOCKED_FILE_EXTENSIONS: [&str; 24] = [
+/// Extensions whose default-handler launch executes program logic rather
+/// than open a document: native executables/installers plus every
+/// script/interpreter class a default Windows association can run through
+/// its registered interpreter (batch/cmd interpreters, PowerShell,
+/// VBScript/JScript via WSH, Python for `.py`/`.pyw`, Windows Installer,
+/// Control Panel applets, HTML Applications, screen savers, DOS stubs).
+/// Defense in depth only: the primary control is exact-target explicit
+/// selection plus per-dispatch revalidation.
+const BLOCKED_FILE_EXTENSIONS: [&str; 26] = [
     "exe",
     "bat",
     "cmd",
@@ -184,6 +211,8 @@ const BLOCKED_FILE_EXTENSIONS: [&str; 24] = [
     "jse",
     "wsf",
     "wsh",
+    "py",
+    "pyw",
     "msi",
     "msp",
     "mst",
@@ -362,6 +391,13 @@ fn validate_path(raw: &str) -> Result<(), LaunchConfigError> {
     {
         return Err(LaunchConfigError::PathInvalidChar);
     }
+    // Capability-qualifier hygiene: the token becomes a qualifier value
+    // verbatim, so bytes the domain grammar forbids reject here (the
+    // qualifier parser rejects control characters, `*`, `?`, and `,`, plus
+    // surrounding whitespace; control/wildcards are already refused above).
+    if raw.contains(',') || raw.trim() != raw {
+        return Err(LaunchConfigError::PathQualifierUnsafe);
+    }
     if !is_absolute_form(raw) {
         return Err(LaunchConfigError::PathNotAbsolute);
     }
@@ -390,6 +426,13 @@ fn validate_url(raw: &str) -> Result<UrlTarget, LaunchConfigError> {
     }
     if raw.chars().any(|c| c.is_control() || c == ' ') {
         return Err(LaunchConfigError::UrlForbiddenChar);
+    }
+    // Capability-qualifier hygiene: the token becomes a qualifier value
+    // verbatim, so the bytes the domain grammar forbids reject here
+    // (`?`/`*` are wildcards and `,` is a qualifier separator to the
+    // capability parser; whitespace/control are already refused above).
+    if raw.contains(['?', '*', ',']) {
+        return Err(LaunchConfigError::UrlQualifierUnsafe);
     }
     let Some(scheme_end) = raw.find(':') else {
         return Err(LaunchConfigError::UrlNotAbsoluteForm);
@@ -558,6 +601,11 @@ pub enum LaunchConfigError {
     PathTooLong,
     /// The path contained forbidden characters.
     PathInvalidChar,
+    /// The path carried bytes that cannot embed verbatim into a
+    /// capability qualifier value (commas, surrounding whitespace), so
+    /// approving it would produce a capability string that cannot
+    /// round-trip through configuration and persistence boundaries.
+    PathQualifierUnsafe,
     /// `url` was not a JSON string.
     UrlWrongType,
     /// The URL was not absolute `scheme://…` form.
@@ -571,6 +619,11 @@ pub enum LaunchConfigError {
     UrlMissingHost,
     /// The URL exceeded [`MAX_TARGET_BYTES`].
     UrlTooLong,
+    /// The URL carried bytes that cannot embed verbatim into a capability
+    /// qualifier value (wildcards `?`/`*`, commas), so approving it would
+    /// produce a capability string that cannot round-trip through
+    /// configuration and persistence boundaries.
+    UrlQualifierUnsafe,
     /// The URL scheme is outside the registration policy allowlist.
     PolicySchemeNotAllowed,
     /// The file target looks executable or scriptable and refuses as a
@@ -596,12 +649,18 @@ impl fmt::Display for LaunchConfigError {
             Self::PathDeviceNamespace => "file target must not use the device namespace",
             Self::PathTooLong => "file target exceeds the token limit",
             Self::PathInvalidChar => "file target contains forbidden characters",
+            Self::PathQualifierUnsafe => {
+                "file target carries bytes forbidden in capability qualifiers"
+            }
             Self::UrlWrongType => "'url' must be a string",
             Self::UrlNotAbsoluteForm => "URL target must be absolute 'scheme://...' form",
             Self::UrlForbiddenChar => "URL target contains whitespace or forbidden characters",
             Self::UrlUserinfo => "URL target must not carry a userinfo component",
             Self::UrlMissingHost => "URL target must carry a non-empty host",
             Self::UrlTooLong => "URL target exceeds the token limit",
+            Self::UrlQualifierUnsafe => {
+                "URL target carries bytes forbidden in capability qualifiers"
+            }
             Self::PolicySchemeNotAllowed => "URL scheme is outside the policy allowlist",
             Self::PolicyExecutableTarget => {
                 "file target looks executable and refuses under launch policy"
@@ -620,6 +679,7 @@ mod tests {
         MAX_IDENTITY_TOKEN_BYTES, MAX_TARGET_BYTES, UrlScheme, UrlTarget, parse_application_params,
         parse_file_params, parse_url_params,
     };
+    use openstream_domain::capability::Capability;
     use serde_json::{Value, json};
 
     #[test]
@@ -738,6 +798,14 @@ mod tests {
                 json!({ "path": "C:\u{0}\\a.txt" }),
                 LaunchConfigError::PathInvalidChar,
             ),
+            (
+                json!({ "path": "C:\\shows\\take 5,6.md" }),
+                LaunchConfigError::PathQualifierUnsafe,
+            ),
+            (
+                json!({ "path": "/stage/cue.txt " }),
+                LaunchConfigError::PathQualifierUnsafe,
+            ),
         ];
         for (params, expected) in cases {
             assert_eq!(
@@ -753,7 +821,6 @@ mod tests {
         for raw in [
             "https://example.com/live",
             "HTTP://Example.COM:8080/dashboard",
-            "https://example.com/path?a=b#cue",
             "http://127.0.0.1:8000/",
         ] {
             let target = UrlTarget::try_new(raw).unwrap_or_else(|e| panic!("{raw}: {e}"));
@@ -812,6 +879,22 @@ mod tests {
             (
                 json!({ "url": "https://example.com/\n" }),
                 LaunchConfigError::UrlForbiddenChar,
+            ),
+            (
+                json!({ "url": "https://example.com/path?a=b#cue" }),
+                LaunchConfigError::UrlQualifierUnsafe,
+            ),
+            (
+                json!({ "url": "https://example.com/live?q=1" }),
+                LaunchConfigError::UrlQualifierUnsafe,
+            ),
+            (
+                json!({ "url": "https://example.com/a*b" }),
+                LaunchConfigError::UrlQualifierUnsafe,
+            ),
+            (
+                json!({ "url": "http://example.com/take,5" }),
+                LaunchConfigError::UrlQualifierUnsafe,
             ),
         ];
         for (params, expected) in cases {
@@ -904,6 +987,70 @@ mod tests {
         ] {
             let target = FileTarget::try_new(allowed).expect("structurally valid");
             assert_eq!(policy.check_file(&target), Ok(()), "{allowed}");
+        }
+    }
+
+    #[test]
+    fn policy_denies_every_interpreter_associated_extension_class() {
+        // One representative target per executable/script class the guard
+        // must deny, including every interpreter-associated extension
+        // (Windows file associations launch .py/.pyw through Python, .js
+        // through WSH, and so on). Aliases that Win32 normalization would
+        // resolve back onto the dangerous name (trailing dots/spaces) deny
+        // through the same lookup.
+        let denied = [
+            ("C:\\tools\\run.exe", "exe"),
+            ("C:\\tools\\payload.py", "py"),
+            ("C:\\tools\\payload.PYW", "pyw"),
+            ("C:\\bypass\\RUN.BAT", "bat"),
+            ("C:\\bypass\\job.cmd", "cmd"),
+            ("/opt/drop/script.ps1", "ps1"),
+            ("C:\\drop\\macro.vbs", "vbs"),
+            ("\\\\server\\share\\app.js", "js"),
+            ("/home/u/app.jse", "jse"),
+            ("C:\\drop\\task.wsf", "wsf"),
+            ("C:\\drop\\task.wsh", "wsh"),
+            ("C:\\admin\\console.msc", "msc"),
+            ("/home/u/drop.hta", "hta"),
+            ("C:\\drop\\saver.scr", "scr"),
+            ("C:\\legacy\\image.com", "com"),
+            ("C:\\drop\\shortcut.pif", "pif"),
+            ("C:\\bypass\\payload.py.", "alias: trailing dot"),
+            ("C:\\bypass\\setup.EXE.", "alias: trailing dot"),
+            ("C:\\bypass\\payload.py .", "alias: dot/space suffix"),
+        ];
+        let policy = LaunchPolicy::standard();
+        for (raw, class) in denied {
+            let target = FileTarget::try_new(raw)
+                .unwrap_or_else(|e| panic!("{raw} ({class}) must be structurally valid: {e}"));
+            assert_eq!(
+                policy.check_file(&target),
+                Err(LaunchConfigError::PolicyExecutableTarget),
+                "{raw} ({class}) must refuse"
+            );
+        }
+    }
+
+    #[test]
+    fn capability_strings_round_trip_byte_exact_for_every_kind() {
+        use std::str::FromStr;
+
+        // Every accepted target token must embed verbatim into its
+        // capability qualifier and parse back unchanged; validators reject
+        // the bytes the qualifier grammar forbids so this holds by
+        // construction.
+        for binding in [
+            LaunchBinding::Application(ApplicationTarget::try_new("obs-studio").unwrap()),
+            LaunchBinding::File(FileTarget::try_new("C:\\Program Files\\Obs\\notes.md").unwrap()),
+            LaunchBinding::Url(UrlTarget::try_new("HTTPS://Example.com/live").unwrap()),
+        ] {
+            let capability = binding.capability();
+            let text = capability.to_string();
+            assert_eq!(
+                Capability::from_str(&text).expect("parses"),
+                capability,
+                "{text}"
+            );
         }
     }
 
