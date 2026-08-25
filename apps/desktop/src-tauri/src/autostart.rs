@@ -325,6 +325,21 @@ mod windows_tests {
         (backend, subkey)
     }
 
+    /// Serializes every test that touches the REAL registry. Cargo's default
+    /// runner executes tests on parallel threads, and this module's scratch
+    /// trees share global scaffolding parents (`Software\OpenStream[\\Tests]`)
+    /// that one test's cleanup removes when empty. Without the guard, a
+    /// concurrent test's create/read can race that removal and observe a
+    /// spurious refusal. The returned guard is held for the test's ENTIRE
+    /// body (bind it to a named variable, never `let _ = ...`, which drops
+    /// immediately).
+    fn registry_test_guard() -> std::sync::MutexGuard<'static, ()> {
+        static REGISTRY_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        REGISTRY_TEST_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
     fn cleanup(subkey: &str) {
         // Remove the whole scratch subtree; a missing parent is fine.
         let leaf = subkey.split('\\').next_back().unwrap_or(subkey);
@@ -334,8 +349,10 @@ mod windows_tests {
             .and_then(|parent| parent.delete_subkey_all(leaf));
         // Then remove now-empty test scaffolding parents. delete_subkey
         // refuses non-empty keys, so this can never destroy anything the
-        // tests did not create themselves (parallel runs keep leaves alive
-        // and the parent deletion fails harmlessly).
+        // tests did not create themselves. Removing the parents is safe ONLY
+        // because every registry test holds `registry_test_guard` for its
+        // whole body: no sibling test can hold or be creating a leaf under
+        // this scaffolding while it runs.
         let _ = root
             .open_subkey_with_flags(r"Software\OpenStream", KEY_WRITE)
             .and_then(|parent| parent.delete_subkey("Tests"));
@@ -366,6 +383,7 @@ mod windows_tests {
 
     #[test]
     fn absent_registration_reads_disabled() {
+        let _registry_lock = registry_test_guard();
         let (backend, subkey) = scratch_backend();
         let outcome = backend.status();
         cleanup(&subkey);
@@ -374,6 +392,7 @@ mod windows_tests {
 
     #[test]
     fn enable_disable_round_trip_on_the_real_registry() {
+        let _registry_lock = registry_test_guard();
         let (mut backend, subkey) = scratch_backend();
 
         let enabled = backend.enable().and_then(|()| backend.status());
@@ -396,6 +415,7 @@ mod windows_tests {
 
     #[test]
     fn disable_is_idempotent_and_missing_key_is_disabled() {
+        let _registry_lock = registry_test_guard();
         let (mut backend, subkey) = scratch_backend();
 
         // Disable before anything exists: idempotent success, still disabled.
