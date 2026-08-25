@@ -3,6 +3,9 @@
 //!
 //! - [`SqliteJournal`] implements the engine's `ExecutionJournal` durability
 //!   port over SQLite with atomic autosave semantics.
+//! - [`WorkspaceStore`] persists authored deck/profile documents (issue #17)
+//!   with the same atomic-autosave discipline: every commit is one
+//!   all-or-nothing whole-snapshot transaction.
 //! - The open pipeline ([`SCHEMA_VERSION`], forward-only migrations with
 //!   verified backup-before-migrate, integrity verification) is shared by
 //!   every future repository in this crate; new schema versions append one
@@ -21,7 +24,9 @@
 mod error;
 mod journal;
 mod migrations;
+mod workspace;
 
 pub use self::error::{CorruptionStage, SchemaStage, StorageError};
 pub use self::journal::{JournalBounds, SqliteJournal};
 pub use self::migrations::{RecoveryOutcome, RecoveryReport, SCHEMA_VERSION, recover};
+pub use self::workspace::{DocumentKind, StoredDocument, WorkspaceStore};
