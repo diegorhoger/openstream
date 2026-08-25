@@ -27,6 +27,20 @@
 //! | Windows | [`launch::WindowsLaunchBackend`] (CreateProcess-class direct spawns; ShellExecuteW-class default-handler opens via the pinned `open` wrapper) | Supported: validated application/file/URL targets launch |
 //! | macOS / Linux | [`launch::UnsupportedLaunchBackend`] | Every operation returns [`launch::LaunchError::Unsupported`]; no fallback exists |
 //!
+//! Media/volume platform support matrix (issue #12, same discipline):
+//!
+//! | Platform | Backend | Behavior |
+//! |---|---|---|
+//! | Windows | [`media::WindowsMediaBackend`] (SendInput-class synthesis of the standard media and volume keys via the pinned `enigo` wrapper) | Supported: transport commands and master-scope volume operations apply |
+//! | macOS / Linux | [`media::UnsupportedMediaBackend`] | Every operation returns [`media::MediaError::Unsupported`]; no fallback exists |
+//!
+//! Volume authority is per named device scope: registration declares
+//! exactly `audio.control:device=master` (the OS default render endpoint),
+//! so any other device scope rejects before grants are consulted and the
+//! port refuses it defensively (`device_scope_unsupported`). A scoped
+//! request never silently degrades into global/master control, and no
+//! per-session/per-endpoint enumeration exists anywhere in this crate.
+//!
 //! Wayland limitation (explicit): global synthetic input has no stable,
 //! compositor-independent protocol under Wayland's security model; shipping
 //! a per-compositor workaround would widen OS permissions beyond declared
@@ -51,10 +65,13 @@
 //! argument interpolation (zero arguments this milestone), no inherited
 //! environment/CWD/standard handles on direct spawns, executable identity
 //! revalidated before every spawn, and URL execution confined to the
-//! policy allowlist over a closed scheme vocabulary.
+//! policy allowlist over a closed scheme vocabulary. The media/volume
+//! adapters only ever *send* one-shot control events — no audio capture,
+//! session/process enumeration, or playback-state polling exists anywhere.
 
 pub mod backend;
 pub mod launch;
+pub mod media;
 pub mod port;
 pub mod spec;
 
@@ -71,6 +88,14 @@ pub use crate::{
         LaunchRegistrationError, MAX_IDENTITY_TOKEN_BYTES, MAX_TARGET_BYTES,
         UnsupportedLaunchBackend, UrlScheme, UrlTarget, parse_application_params,
         parse_file_params, parse_url_params, platform_launch_backend, register_launch_actions,
+    },
+    media::{
+        ACTION_TYPE_AUDIO_VOLUME, ACTION_TYPE_MEDIA_TRANSPORT, AudioVolumePort,
+        CODE_DEVICE_SCOPE_UNSUPPORTED, CODE_INVALID_MEDIA_CONFIG, CODE_INVALID_VOLUME_CONFIG,
+        FakeMediaBackend, MASTER_DEVICE_SCOPE, MAX_MEDIA_TOKEN_BYTES, MAX_VOLUME_STEPS,
+        MediaCommand, MediaConfigError, MediaDeviceController, MediaError, MediaInvocation,
+        MediaTransportPort, StepDirection, UnsupportedMediaBackend, VolumeOperation,
+        parse_media_params, parse_volume_params, platform_media_backend, register_media_actions,
     },
     port::{
         ACTION_TYPE_KEYBOARD_SHORTCUT, CODE_CAPABILITY_MISMATCH, CODE_INVALID_CONFIG,
@@ -103,3 +128,11 @@ pub use crate::backend::WindowsKeyboardBackend;
 #[cfg(target_os = "windows")]
 #[doc(inline)]
 pub use crate::launch::WindowsLaunchBackend;
+
+/// Real Windows media/volume backend (SendInput-class synthesis of the
+/// standard media and volume keys through the pinned `enigo` wrapper).
+/// Present only on Windows; every other platform reports
+/// [`UnsupportedMediaBackend`] through [`platform_media_backend`].
+#[cfg(target_os = "windows")]
+#[doc(inline)]
+pub use crate::media::WindowsMediaBackend;
