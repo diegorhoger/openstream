@@ -26,6 +26,11 @@ pub const RUN_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 pub const RUN_VALUE_NAME: &str = "OpenStream";
 
 /// Which autostart operation failed; closed vocabulary for surfacing.
+///
+/// Constructed by the Windows registry backend and the test double;
+/// reachability is therefore platform-conditional, hence the targeted
+/// allowance (never a blanket lint weakening).
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AutostartOperation {
     /// Reading current registration state.
@@ -58,7 +63,9 @@ pub enum AutostartError {
         /// Platform label from `std::env::consts::OS` (echo-safe).
         os: &'static str,
     },
-    /// The concrete backend refused one operation.
+    /// The concrete backend refused one operation. Constructed only by
+    /// backends with real side effects (Windows registry, test double).
+    #[allow(dead_code)]
     BackendRefused {
         /// Which operation was refused.
         operation: AutostartOperation,
@@ -75,6 +82,11 @@ impl fmt::Display for AutostartError {
 }
 
 /// Whether launch-at-login is currently registered (OS truth).
+///
+/// Constructed by concrete backends only; reachability is therefore
+/// platform-conditional (Windows backend / test double), hence the
+/// targeted allowance.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AutostartStatus {
     /// A launch registration exists.
