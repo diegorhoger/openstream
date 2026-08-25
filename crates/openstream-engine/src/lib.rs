@@ -26,8 +26,11 @@
 //!   SQLite is #15) and time behind [`clock::Clock`] (no system-clock
 //!   implementation ships until the composition root, #16).
 //! - **Fakes only:** concrete OS/OBS adapters are issues #10–#13; this
-//!   crate defines the dispatch contract they must satisfy.
-//! - Sequencing features beyond v1 node semantics remain #14 scope.
+//!   crate defines the dispatch contract they must satisfy. Issue #14
+//!   proves the multi-action semantics end-to-end through those real
+//!   registered adapters behind recorded fakes (integration suites in the
+//!   adapter crates) and settles residual sibling work at every terminal
+//!   so no crash-gap window survives a persisted decision.
 //!
 //! Failure honesty: terminal states are exactly the authoritative journal
 //! subset of `PROTOCOL.md` ([`runtime::TerminalState`]); unknown outcomes

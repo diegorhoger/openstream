@@ -971,3 +971,348 @@ fn identical_inputs_produce_identical_receipts_modulo_ids() {
     assert_eq!(strip(first), strip(second));
     assert_ne!(first.execution_id, second.execution_id);
 }
+
+// ---------------------------------------------------------------------------
+// Issue #14: multi-action graph semantics — residual-work settlement,
+// bounded retry attempts, cancellation during sleeps, deadline-vs-backoff,
+// conditional fall-through.
+// ---------------------------------------------------------------------------
+
+/// Regression for issue #14 (one-terminal-state integrity, OSCP_MESSAGES
+/// §8): a `stop`-policy failure firing mid-pass while a sibling branch
+/// still holds an in-flight delayed effect must settle that effect exactly
+/// once. Before the fix the sibling's prepared record stayed open and
+/// `recover_outcome_unknown()` later flipped the persisted `failed`
+/// terminal to `outcome_unknown`.
+#[test]
+fn stop_policy_with_parallel_inflight_settles_evidence_and_recovery_finds_nothing() {
+    let harness = Harness::new();
+    let mut registry = ActionRegistry::new();
+    // Invocation order is branch insertion order: n_slow takes the
+    // delayed-success step, n_boom the immediate failure.
+    register_action(
+        &mut registry,
+        "act.x",
+        vec![midi("stagepad")],
+        false,
+        false,
+        ScriptedPort::new(
+            vec![Step::Delay(5_000), Step::Fail("boom")],
+            Arc::clone(&harness.events),
+            harness.clock.clone(),
+        ),
+    );
+
+    let mut raw = RawGraph::new(FailurePolicy::Stop);
+    raw.add_node(node_key("fan"), NodeKind::Parallel).unwrap();
+    raw.add_node(node_key("n_slow"), action("act.x", midi("stagepad")))
+        .unwrap();
+    raw.add_node(node_key("n_boom"), action("act.x", midi("stagepad")))
+        .unwrap();
+    let raw = raw
+        .add_edge(node_key("fan"), node_key("n_slow"), EdgeKindInput::Sequence)
+        .add_edge(node_key("fan"), node_key("n_boom"), EdgeKindInput::Sequence)
+        .entry(node_key("fan"));
+    let graph = Arc::new(ValidatedGraph::build(raw, &registry).unwrap());
+
+    let mut runtime = harness.runtime_with_journal(
+        registry,
+        ledger_with(&[midi("stagepad")]),
+        InstrumentedJournal::new(Arc::clone(&harness.events), harness.clock.clone()),
+    );
+    let receipt = run_ok(&mut runtime, &harness, &graph);
+
+    match receipt.state {
+        TerminalState::Failed {
+            reason: openstream_engine::FailureReason::AdapterFailed { ref code },
+        } => assert_eq!(code, "boom"),
+        other => panic!("expected typed adapter failure, got {other:?}"),
+    }
+    // The abandoned in-flight effect settles honestly into evidence even
+    // though the execution terminated failed (no success inference, no
+    // dropped prepared record).
+    let flow: Vec<(String, String)> = receipt
+        .effects
+        .iter()
+        .map(|effect| (effect.node_key.to_string(), effect.outcome.clone()))
+        .collect();
+    assert_eq!(
+        flow,
+        vec![
+            ("n_boom".to_string(), "failed".to_string()),
+            ("n_slow".to_string(), "succeeded".to_string()),
+        ]
+    );
+
+    // THE REGRESSION: recovery must find nothing to flip.
+    assert_eq!(
+        runtime.recover_outcome_unknown().unwrap(),
+        Vec::<openstream_engine::ExecutionId>::new(),
+        "settled siblings must not surface as crash-gap orphans"
+    );
+    let lifecycle_tokens: Vec<&str> = harness
+        .events
+        .snapshot()
+        .iter()
+        .filter_map(|event| match event {
+            Event::Lifecycle { lifecycle, .. } => Some(*lifecycle),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        lifecycle_tokens
+            .iter()
+            .filter(|token| **token == "outcome_unknown")
+            .count(),
+        0,
+        "no corrective unknown evidence may exist for a failed execution"
+    );
+    assert_eq!(
+        lifecycle_tokens
+            .iter()
+            .filter(|token| **token == "failed")
+            .count(),
+        1,
+        "exactly one persisted terminal state"
+    );
+}
+
+/// Same integrity contract when the mid-pass terminal is an unknown
+/// outcome instead of a stop-policy failure: the surviving sibling
+/// settles honestly and recovery finds no orphan.
+#[test]
+fn unknown_outcome_with_parallel_inflight_still_settles_siblings() {
+    let harness = Harness::new();
+    let mut registry = ActionRegistry::new();
+    register_action(
+        &mut registry,
+        "act.x",
+        vec![midi("stagepad")],
+        true,
+        false,
+        ScriptedPort::new(
+            vec![Step::Delay(5_000), Step::Unknown],
+            Arc::clone(&harness.events),
+            harness.clock.clone(),
+        ),
+    );
+
+    let mut raw = RawGraph::new(FailurePolicy::Stop);
+    raw.add_node(node_key("fan"), NodeKind::Parallel).unwrap();
+    raw.add_node(node_key("n_slow"), action("act.x", midi("stagepad")))
+        .unwrap();
+    raw.add_node(node_key("n_lost"), action("act.x", midi("stagepad")))
+        .unwrap();
+    let raw = raw
+        .add_edge(node_key("fan"), node_key("n_slow"), EdgeKindInput::Sequence)
+        .add_edge(node_key("fan"), node_key("n_lost"), EdgeKindInput::Sequence)
+        .entry(node_key("fan"));
+    let graph = Arc::new(ValidatedGraph::build(raw, &registry).unwrap());
+
+    let mut runtime = harness.runtime_with_journal(
+        registry,
+        ledger_with(&[midi("stagepad")]),
+        InstrumentedJournal::new(Arc::clone(&harness.events), harness.clock.clone()),
+    );
+    let receipt = run_ok(&mut runtime, &harness, &graph);
+
+    assert_eq!(receipt.state.token(), "outcome_unknown");
+    let outcomes: Vec<(String, String)> = receipt
+        .effects
+        .iter()
+        .map(|effect| (effect.node_key.to_string(), effect.outcome.clone()))
+        .collect();
+    assert_eq!(
+        outcomes,
+        vec![
+            ("n_lost".to_string(), "unknown".to_string()),
+            ("n_slow".to_string(), "succeeded".to_string()),
+        ],
+        "the lost outcome stays unknown and the sibling settles honestly"
+    );
+    assert_eq!(
+        runtime.recover_outcome_unknown().unwrap(),
+        Vec::<openstream_engine::ExecutionId>::new(),
+        "settled siblings must not surface as crash-gap orphans"
+    );
+}
+
+#[test]
+fn retry_attempts_above_cap_reject_at_validation() {
+    let harness = Harness::new();
+    let mut registry = ActionRegistry::new();
+    register_action(
+        &mut registry,
+        "midi.tap",
+        vec![midi("stagepad")],
+        true,
+        false,
+        ok_port(&harness),
+    );
+
+    let mut raw = RawGraph::new(FailurePolicy::Stop);
+    raw.add_node(
+        node_key("retry"),
+        NodeKind::Retry {
+            attempts: openstream_engine::MAX_RETRY_ATTEMPTS + 1,
+        },
+    )
+    .unwrap();
+    raw.add_node(node_key("body"), action("midi.tap", midi("stagepad")))
+        .unwrap();
+    let raw = raw
+        .add_edge(node_key("retry"), node_key("body"), EdgeKindInput::Sequence)
+        .entry(node_key("retry"));
+
+    assert!(matches!(
+        ValidatedGraph::build(raw, &registry),
+        Err(openstream_engine::ValidationError::MalformedRetry { .. })
+    ));
+    let _ = std::hint::black_box(harness);
+}
+
+#[test]
+fn cancellation_during_delay_sleep_aborts_pending_tail() {
+    let harness = Harness::new();
+    let mut registry = ActionRegistry::new();
+    register_action(
+        &mut registry,
+        "midi.tap",
+        vec![midi("stagepad")],
+        false,
+        false,
+        ok_port(&harness),
+    );
+
+    let mut raw = RawGraph::new(FailurePolicy::Stop);
+    raw.add_node(node_key("a"), action("midi.tap", midi("stagepad")))
+        .unwrap();
+    raw.add_node(node_key("wait"), NodeKind::Delay { duration_ms: 5_000 })
+        .unwrap();
+    raw.add_node(node_key("b"), action("midi.tap", midi("stagepad")))
+        .unwrap();
+    raw.add_node(node_key("seq"), NodeKind::Sequence).unwrap();
+    for to in ["a", "wait", "b"] {
+        raw.add_edge(node_key("seq"), node_key(to), EdgeKindInput::Sequence);
+    }
+    raw.entry(node_key("seq"));
+    let graph = Arc::new(ValidatedGraph::build(&raw, &registry).unwrap());
+
+    let mut runtime = harness.runtime(registry, ledger_with(&[midi("stagepad")]));
+    let request = ExecuteRequest {
+        source_device_id: device(),
+        message_id: MessageId::generate(),
+        subject: subject(),
+        graph: Arc::clone(&graph),
+        variables: Default::default(),
+        expires_at_wall_ms: harness.expires_at(),
+        cancel: None::<openstream_engine::CancelSignal>,
+    };
+    let mut handle = runtime.begin(request).unwrap();
+
+    // One pass completes `a` and parks the branch inside the delay sleep.
+    assert!(handle.step());
+    handle.cancel();
+
+    let receipt = handle.run_to_completion().expect("terminal reached");
+    assert_eq!(receipt.state.token(), "cancelled");
+    let snapshot = harness.events.snapshot();
+    let dispatched: Vec<&str> = snapshot
+        .iter()
+        .filter_map(|event| match event {
+            Event::Dispatch { node, .. } => Some(node.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(dispatched, vec!["a"], "pending tail never dispatches");
+}
+
+#[test]
+fn execution_deadline_during_retry_backoff_expires_without_more_attempts() {
+    let harness = Harness::new();
+    let mut registry = ActionRegistry::new();
+    register_action(
+        &mut registry,
+        "midi.tap",
+        vec![midi("stagepad")],
+        true,
+        false,
+        ScriptedPort::new(
+            vec![Step::Fail("busy")],
+            Arc::clone(&harness.events),
+            harness.clock.clone(),
+        ),
+    );
+
+    let mut raw = RawGraph::new(FailurePolicy::Stop);
+    raw.execution_deadline_ms(Some(20));
+    raw.add_node(node_key("retry"), NodeKind::Retry { attempts: 3 })
+        .unwrap();
+    raw.add_node(node_key("body"), action("midi.tap", midi("stagepad")))
+        .unwrap();
+    let raw = raw
+        .add_edge(node_key("retry"), node_key("body"), EdgeKindInput::Sequence)
+        .entry(node_key("retry"));
+    let graph = Arc::new(ValidatedGraph::build(raw, &registry).unwrap());
+
+    let mut runtime = harness.runtime(registry, ledger_with(&[midi("stagepad")]));
+    let receipt = run_ok(&mut runtime, &harness, &graph);
+
+    // The 50 ms backoff sleeps past the 20 ms deadline; the scheduler
+    // wakes exactly at the deadline and expires instead of attempting
+    // again (bounded time beats unbounded persistence).
+    assert_eq!(receipt.state.token(), "expired");
+    assert_eq!(harness.clock.monotonic_ms(), 20);
+    assert_eq!(dispatch_count_total(&harness), 1);
+    let attempts: Vec<u32> = receipt
+        .effects
+        .iter()
+        .map(|effect| effect.attempt)
+        .collect();
+    assert_eq!(attempts, vec![0]);
+}
+
+#[test]
+fn conditional_false_without_fallthrough_completes_past_the_condition() {
+    let harness = Harness::new();
+    let mut registry = ActionRegistry::new();
+    register_action(
+        &mut registry,
+        "midi.tap",
+        vec![midi("stagepad")],
+        false,
+        false,
+        ok_port(&harness),
+    );
+
+    let mut raw = RawGraph::new(FailurePolicy::Stop);
+    raw.add_node(
+        node_key("branch"),
+        NodeKind::Conditional {
+            condition: Condition {
+                variable: "mode".to_string(),
+                op: ConditionOp::Equals,
+                operand: serde_json::json!("go"),
+            },
+        },
+    )
+    .unwrap();
+    raw.add_node(node_key("truth_arm"), action("midi.tap", midi("stagepad")))
+        .unwrap();
+    let raw = raw
+        .add_edge(
+            node_key("branch"),
+            node_key("truth_arm"),
+            EdgeKindInput::Branch { polarity: true },
+        )
+        .entry(node_key("branch"));
+    let graph = Arc::new(ValidatedGraph::build(raw, &registry).unwrap());
+
+    let mut runtime = harness.runtime(registry, ledger_with(&[midi("stagepad")]));
+    let receipt = run_ok(&mut runtime, &harness, &graph);
+
+    // No fall-through arm authored and the condition is false: the
+    // conditional completes silently; the truth arm never dispatches.
+    assert_eq!(receipt.state.token(), "succeeded");
+    assert!(receipt.effects.is_empty());
+}
