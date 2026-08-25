@@ -1,6 +1,6 @@
 [package]
 name = "openstream-os-automation"
-description = "OS automation adapters (issue #10: keyboard shortcut synthesis). Windows ships a real SendInput-class backend via the audited enigo wrapper; every other platform reports honest Unsupported with no fallback. No input capture or key listening of any kind."
+description = "OS automation adapters (issue #10: keyboard shortcut synthesis; issue #11: application/file/URL launch actions). Windows ships real backends via the audited enigo and open wrappers; every other platform reports honest Unsupported with no fallback. No input capture, no shell, no argument interpolation."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -21,3 +21,13 @@ serde_json = "=1.0.151"
 # Wayland) is compiled anywhere else: unsupported platforms must report
 # `Unsupported`, never fall back.
 enigo = { version = "=0.6.1", default-features = false }
+
+# Default-handler file/URL opening for the launch adapters. All FFI
+# (ShellExecuteW) lives inside this audited dependency. The crate ships NO
+# default features; the opt-in `shellexecute-on-windows` feature is enabled
+# deliberately so file/URL opens take the direct ShellExecuteW path with no
+# shell intermediary (backend calls use `that_detached`, never the default
+# powershell.exe Start-Process route of the plain API). The legacy
+# command-interpreter path only exists behind the never-enabled `insecure`
+# feature.
+open = { version = "=5.4.1", features = ["shellexecute-on-windows"] }
