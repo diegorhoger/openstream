@@ -106,9 +106,17 @@ mod tests {
     #[test]
     fn windows_uses_appdata() {
         let env = env_from(&[("APPDATA", r"C:\Users\u\AppData\Roaming")]);
+        let resolved =
+            resolve_data_dir_for(DesktopPlatform::Windows, &env).expect("APPDATA present");
+        // Separator-neutral assertions: the host's PathBuf join rules must
+        // not change which directory resolves, only how it renders.
         assert_eq!(
-            resolve_data_dir_for(DesktopPlatform::Windows, &env),
-            Some(r"C:\Users\u\AppData\Roaming\OpenStream".into())
+            resolved.parent(),
+            Some(std::path::Path::new(r"C:\Users\u\AppData\Roaming"))
+        );
+        assert_eq!(
+            resolved.file_name(),
+            Some(std::ffi::OsStr::new(super::APP_DIR_NAME))
         );
     }
 
