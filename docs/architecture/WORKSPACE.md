@@ -42,6 +42,7 @@ milestones. Naming matches TECHNICAL_SPEC §3 exactly.
 | `apps/desktop/src-tauri/` | Tauri 2 composition root, deny-by-default capabilities |
 | `apps/desktop/ui/` | React + strict TypeScript + Vite shell (TECHNICAL_SPEC §2) |
 | `integrations/os-automation/` | keyboard shortcut adapter (issue #10), application/file/URL launch adapters (issue #11), and media transport / master-scope volume adapters (issue #12): Windows real backends, honest Unsupported elsewhere |
+| `integrations/os-obs/` | OBS WebSocket v5 integration adapters (issue #13): discovery with typed version compatibility, vault-only connection secrets, eight registered actions across the `obs.*` capability rows, destructive arm/confirm gating, bounded-backoff reconnect, event-driven live state, and a deterministic fake OBS server for CI contract tests |
 
 Remaining TECHNICAL_SPEC §3 directories (`apps/ios`, `apps/android`,
 `integrations/`, `proto/`, `wit/`, `packages/`, `simulators/`,

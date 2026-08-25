@@ -1,0 +1,23 @@
+[package]
+name = "openstream-os-obs"
+description = "OBS WebSocket v5 integration adapters (issue #13): discovery with typed version compatibility, vault-only connection secrets, typed scene/source/mute/stream/record/replay actions behind engine action types, destructive arm/confirm gating, bounded-backoff reconnect, event-driven live state, and a deterministic fake OBS server for contract tests. Connection secrets resolve only through the OS credential-vault abstraction."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+openstream-domain = { path = "../../crates/openstream-domain" }
+openstream-engine = { path = "../../crates/openstream-engine" }
+openstream-persistence = { path = "../../crates/openstream-persistence" }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+sha2 = "=0.10.9"
+base64 = "=0.22.1"
+tungstenite = "=0.24.0"
+
+[dev-dependencies]
+proptest = "=1.11.0"
