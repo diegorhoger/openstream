@@ -29,17 +29,20 @@
 //!   segments, trailing separators, device namespaces (`\\.\`, `\\?\`),
 //!   control characters, and oversized input.
 //! - URLs must be absolute `scheme://authority…` form with a non-empty
-//!   host, no userinfo component, no whitespace or control characters, and
-//!   a scheme matched case-insensitively against the policy allowlist (a
+//!   host, no userinfo component, no control characters or interior ASCII
+//!   space, and no surrounding whitespace in any Unicode script (every
+//!   `char::is_whitespace` code point around the token rejects), with a
+//!   scheme matched case-insensitively against the policy allowlist (a
 //!   closed [`UrlScheme`] vocabulary — arbitrary custom schemes are never
 //!   admissible).
 //! - Every accepted target token must embed verbatim into its capability
 //!   qualifier value, so bytes the domain qualifier grammar forbids reject
 //!   with explicit typed errors: paths refuse commas and surrounding
 //!   whitespace ([`LaunchConfigError::PathQualifierUnsafe`]); URLs refuse
-//!   wildcards (`?`, `*`) and commas
-//!   ([`LaunchConfigError::UrlQualifierUnsafe`]). Approved capabilities
-//!   therefore always round-trip byte-exact through serialization.
+//!   wildcards (`?`, `*`), commas, and surrounding whitespace in any
+//!   Unicode script ([`LaunchConfigError::UrlQualifierUnsafe`]). Approved
+//!   capabilities therefore always round-trip byte-exact through
+//!   serialization.
 //! - File targets whose extension looks executable/scriptable — including
 //!   every interpreter-associated class (`.py`/`.pyw` through Python,
 //!   `.bat`/`.cmd` through the command interpreter, `.ps1` through
@@ -424,13 +427,21 @@ fn validate_url(raw: &str) -> Result<UrlTarget, LaunchConfigError> {
     if raw.len() > MAX_TARGET_BYTES {
         return Err(LaunchConfigError::UrlTooLong);
     }
+    // Capability-qualifier hygiene comes first so EVERY surrounding
+    // whitespace character fails here: the domain qualifier parser
+    // forbids surrounding whitespace via Unicode-aware `str::trim`, so
+    // any Unicode White_Space code point around the token — ASCII or
+    // not — must reject at validation with the typed qualifier error
+    // instead of producing a capability string that cannot deserialize
+    // downstream.
+    if raw.trim() != raw {
+        return Err(LaunchConfigError::UrlQualifierUnsafe);
+    }
     if raw.chars().any(|c| c.is_control() || c == ' ') {
         return Err(LaunchConfigError::UrlForbiddenChar);
     }
-    // Capability-qualifier hygiene: the token becomes a qualifier value
-    // verbatim, so the bytes the domain grammar forbids reject here
-    // (`?`/`*` are wildcards and `,` is a qualifier separator to the
-    // capability parser; whitespace/control are already refused above).
+    // Wildcards and commas cannot embed verbatim into a qualifier value
+    // either; interior ASCII spaces and control characters refuse above.
     if raw.contains(['?', '*', ',']) {
         return Err(LaunchConfigError::UrlQualifierUnsafe);
     }
@@ -602,16 +613,16 @@ pub enum LaunchConfigError {
     /// The path contained forbidden characters.
     PathInvalidChar,
     /// The path carried bytes that cannot embed verbatim into a
-    /// capability qualifier value (commas, surrounding whitespace), so
-    /// approving it would produce a capability string that cannot
-    /// round-trip through configuration and persistence boundaries.
+    /// capability qualifier value (commas, surrounding whitespace in any
+    /// Unicode script), so approving it would produce a capability
+    /// string that cannot round-trip through configuration and
+    /// persistence boundaries.
     PathQualifierUnsafe,
     /// `url` was not a JSON string.
     UrlWrongType,
     /// The URL was not absolute `scheme://…` form.
     UrlNotAbsoluteForm,
-    /// The URL contained whitespace, control characters, or exceeded
-    /// [`MAX_TARGET_BYTES`].
+    /// The URL carried control characters or an interior ASCII space.
     UrlForbiddenChar,
     /// The URL carried a userinfo (`user@host`) component.
     UrlUserinfo,
@@ -620,9 +631,10 @@ pub enum LaunchConfigError {
     /// The URL exceeded [`MAX_TARGET_BYTES`].
     UrlTooLong,
     /// The URL carried bytes that cannot embed verbatim into a capability
-    /// qualifier value (wildcards `?`/`*`, commas), so approving it would
-    /// produce a capability string that cannot round-trip through
-    /// configuration and persistence boundaries.
+    /// qualifier value (wildcards `?`/`*`, commas, surrounding whitespace
+    /// in any Unicode script), so approving it would produce a capability
+    /// string that cannot round-trip through configuration and persistence
+    /// boundaries.
     UrlQualifierUnsafe,
     /// The URL scheme is outside the registration policy allowlist.
     PolicySchemeNotAllowed,
@@ -877,8 +889,13 @@ mod tests {
                 LaunchConfigError::UrlForbiddenChar,
             ),
             (
+                // Trailing newline is SURROUNDING whitespace, so the
+                // qualifier-hygiene check claims it (typed
+                // UrlQualifierUnsafe); reclassified from UrlForbiddenChar
+                // when surrounding Unicode whitespace hygiene moved ahead
+                // of the character scan. Still fail-closed rejection.
                 json!({ "url": "https://example.com/\n" }),
-                LaunchConfigError::UrlForbiddenChar,
+                LaunchConfigError::UrlQualifierUnsafe,
             ),
             (
                 json!({ "url": "https://example.com/path?a=b#cue" }),
@@ -902,6 +919,92 @@ mod tests {
                 parse_url_params(&params).unwrap_err(),
                 expected,
                 "case {params}"
+            );
+        }
+    }
+
+    #[test]
+    fn url_targets_reject_surrounding_unicode_whitespace_as_qualifier_unsafe() {
+        // Regression (N1): the domain qualifier grammar forbids
+        // surrounding whitespace via Unicode-aware `str::trim`, so a URL
+        // carrying a trailing non-ASCII White_Space character used to pass
+        // validation while its capability string refused to deserialize
+        // downstream. Enumerate every non-ASCII member of the Unicode
+        // White_Space property — exactly the predicate behind `str::trim`
+        // / `char::is_whitespace` — and require rejection at validation
+        // with the typed qualifier error, trailing and leading alike.
+        let enumerated: Vec<char> = (u32::from('\u{80}')..=u32::from('\u{3000}'))
+            .filter_map(char::from_u32)
+            .filter(|&c| c.is_whitespace())
+            .collect();
+        assert_eq!(
+            enumerated,
+            [
+                '\u{0085}', '\u{00a0}', '\u{1680}', '\u{2000}', '\u{2001}', '\u{2002}', '\u{2003}',
+                '\u{2004}', '\u{2005}', '\u{2006}', '\u{2007}', '\u{2008}', '\u{2009}', '\u{200a}',
+                '\u{2028}', '\u{2029}', '\u{202f}', '\u{205f}', '\u{3000}',
+            ]
+        );
+        for ws in &enumerated {
+            for (label, raw) in [
+                ("trailing", format!("https://example.com/live{ws}")),
+                ("leading", format!("{ws}https://example.com/live")),
+            ] {
+                assert_eq!(
+                    UrlTarget::try_new(&raw).unwrap_err(),
+                    LaunchConfigError::UrlQualifierUnsafe,
+                    "{label} U+{:04X} must reject at validation",
+                    u32::from(*ws),
+                );
+                assert_eq!(
+                    parse_url_params(&json!({ "url": raw })).unwrap_err(),
+                    LaunchConfigError::UrlQualifierUnsafe,
+                    "{label} U+{:04X} parser parity",
+                    u32::from(*ws),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn interior_and_zero_width_boundaries_round_trip_byte_exact() {
+        use std::str::FromStr;
+
+        // Pins the exact predicate rather than assuming it: interior
+        // whitespace is legal in the qualifier grammar on BOTH sides
+        // (only surrounding whitespace is forbidden there), so mid-token
+        // targets accept and round-trip byte-exact. U+200B ZERO WIDTH
+        // SPACE is NOT a member of the White_Space property, so it embeds
+        // verbatim consistently too.
+        let mid_ideographic = format!("https://example.com/a{}b", '\u{3000}');
+        for raw in [
+            String::from("https://example.com/a\u{00a0}b"),
+            mid_ideographic,
+            String::from("https://example.com/live\u{200b}"),
+        ] {
+            let target = UrlTarget::try_new(&raw).unwrap_or_else(|e| panic!("{raw:?}: {e}"));
+            assert_eq!(target.as_str(), raw);
+            let capability = LaunchBinding::Url(target).capability();
+            let text = capability.to_string();
+            assert_eq!(Capability::from_str(&text).expect("parses"), capability);
+        }
+    }
+
+    #[test]
+    fn path_targets_share_no_unicode_whitespace_gap() {
+        // The path side has rejected surrounding whitespace through the
+        // same Unicode-aware trim since the qualifier-hygiene hardening;
+        // these cases pin that NO Unicode White_Space class slips through
+        // on paths either (parity with the URL-side repair).
+        for raw in [
+            "C:\\shows\\notes.md\u{00a0}",
+            "/stage/cue.txt\u{3000}",
+            "\u{202f}C:\\shows\\notes.md",
+        ] {
+            assert_eq!(
+                FileTarget::try_new(raw).unwrap_err(),
+                LaunchConfigError::PathQualifierUnsafe,
+                "{raw:?}"
             );
         }
     }
