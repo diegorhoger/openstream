@@ -2272,8 +2272,11 @@ version = "0.1.0"
 name = "openstream-desktop"
 version = "0.1.0"
 dependencies = [
+ "openstream-domain",
  "openstream-engine",
  "openstream-persistence",
+ "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tempfile",
