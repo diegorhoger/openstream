@@ -21,6 +21,9 @@
 //!    resolution. A refused journal write aborts the execution closed
 //!    **before** dispatch; unresolved prepared records surface
 //!    `outcome_unknown` via [`ActionRuntime::recover_outcome_unknown`].
+//!    A terminal decided mid-pass (failure policy `stop`, unknown
+//!    outcome) settles every sibling effect and slot waiter exactly once,
+//!    so no open crash-gap window survives a persisted terminal.
 //!
 //! Every timing decision derives from the injected [`Clock`] (crate::clock);
 //! behavior is reproducible under [`FakeClock`](crate::clock::FakeClock)
@@ -552,6 +555,20 @@ impl<'r> ExecutionHandle<'r> {
         if let Some(fault) = active.run.journal_fault.take() {
             return Err(AdmissionRejection::JournalRefused { source: fault });
         }
+        // A terminal decided mid-pass (`stop` policy failure, unknown
+        // outcome) can leave sibling branches with in-flight effects or
+        // queued slot waiters. Settle them exactly once so the persisted
+        // terminal never leaves an open crash-gap window behind.
+        {
+            let mut ctx = DriverCtx {
+                clock: self.runtime.clock.as_ref(),
+                time_control: None,
+                journal: self.runtime.journal.as_mut(),
+                registry: &self.runtime.registry,
+                ledger: &self.runtime.ledger,
+            };
+            settle_residual_work(&mut ctx, &mut active.run);
+        }
         let terminal = active
             .run
             .terminal
@@ -929,9 +946,27 @@ fn sweep_flags(ctx: &mut DriverCtx<'_>, run: &mut ExecutionRun) {
 }
 
 fn abort_all(ctx: &mut DriverCtx<'_>, run: &mut ExecutionRun, terminal: TerminalState) {
-    // In-flight effects settle honestly: their outcomes were possibly
-    // applied externally and are recorded as evidence even though the
-    // execution terminates cancelled/expired (no success inference).
+    settle_residual_work(ctx, run);
+    for branch in &mut run.branches {
+        branch.state = BranchState::Exited;
+    }
+    run.terminal = Some(terminal);
+}
+
+/// Settles every pending effect exactly once so a terminal decision never
+/// strands durable evidence (`OSCP_MESSAGES.md` §8 one-terminal-state
+/// integrity): in-flight effects resolve their prepared records and are
+/// recorded honestly (outcomes possibly applied externally — never
+/// inferred away), undispatched slot waiters close their prepared
+/// records, and no open crash-gap window survives the terminal.
+///
+/// Called from [`abort_all`] (cancellation/expiry) and from
+/// [`ExecutionHandle::run_to_completion`], because a terminal decided
+/// mid-pass under the `stop` policy or an `unknown` outcome can fire
+/// while sibling branches still hold in-flight effects or queued slot
+/// waiters. Without this, the recovery scan would later misread those
+/// orphans as a crash gap and overwrite the persisted terminal.
+fn settle_residual_work(ctx: &mut DriverCtx<'_>, run: &mut ExecutionRun) {
     let drained: Vec<InFlight> = std::mem::take(&mut run.inflight);
     for effect in drained {
         let now = ctx.clock.monotonic_ms();
@@ -951,7 +986,6 @@ fn abort_all(ctx: &mut DriverCtx<'_>, run: &mut ExecutionRun, terminal: Terminal
         });
         release_slots(run, &effect.action_type);
     }
-    // Slot waiters never dispatched: close their prepared records.
     for waiter in std::mem::take(&mut run.slot_waiters) {
         let _ = ctx.journal.resolve_prepared(
             run.execution_id,
@@ -959,10 +993,6 @@ fn abort_all(ctx: &mut DriverCtx<'_>, run: &mut ExecutionRun, terminal: Terminal
             waiter.attempt,
         );
     }
-    for branch in &mut run.branches {
-        branch.state = BranchState::Exited;
-    }
-    run.terminal = Some(terminal);
 }
 
 fn release_slots(run: &mut ExecutionRun, action_type: &str) {

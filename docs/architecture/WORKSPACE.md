@@ -41,8 +41,8 @@ milestones. Naming matches TECHNICAL_SPEC §3 exactly.
 | `crates/openstream-testkit/` | skeleton |
 | `apps/desktop/src-tauri/` | Tauri 2 composition root, deny-by-default capabilities |
 | `apps/desktop/ui/` | React + strict TypeScript + Vite shell (TECHNICAL_SPEC §2) |
-| `integrations/os-automation/` | keyboard shortcut adapter (issue #10), application/file/URL launch adapters (issue #11), and media transport / master-scope volume adapters (issue #12): Windows real backends, honest Unsupported elsewhere |
-| `integrations/os-obs/` | OBS WebSocket v5 integration adapters (issue #13): discovery with typed version compatibility, vault-only connection secrets, eight registered actions across the `obs.*` capability rows, destructive arm/confirm gating, bounded-backoff reconnect, event-driven live state, and a deterministic fake OBS server for CI contract tests |
+| `integrations/os-automation/` | keyboard shortcut adapter (issue #10), application/file/URL launch adapters (issue #11), and media transport / master-scope volume adapters (issue #12): Windows real backends, honest Unsupported elsewhere; issue #14 adds the multi-action graph-semantics integration suite (`tests/graph_semantics_integration.rs`) driving sequence/delay/conditional/policy/deadline/cancellation semantics through these registered actions |
+| `integrations/os-obs/` | OBS WebSocket v5 integration adapters (issue #13): discovery with typed version compatibility, vault-only connection secrets, eight registered actions across the `obs.*` capability rows, destructive arm/confirm gating, bounded-backoff reconnect, event-driven live state, and a deterministic fake OBS server for CI contract tests; issue #14 adds the multi-action graph-semantics integration suite (`tests/graph_semantics_integration.rs`) over the registered scene/replay/stream actions |
 
 Remaining TECHNICAL_SPEC §3 directories (`apps/ios`, `apps/android`,
 `integrations/`, `proto/`, `wit/`, `packages/`, `simulators/`,
