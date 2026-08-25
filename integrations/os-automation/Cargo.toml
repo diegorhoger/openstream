@@ -1,6 +1,6 @@
 [package]
 name = "openstream-os-automation"
-description = "OS automation adapters (issue #10: keyboard shortcut synthesis; issue #11: application/file/URL launch actions). Windows ships real backends via the audited enigo and open wrappers; every other platform reports honest Unsupported with no fallback. No input capture, no shell, no argument interpolation."
+description = "OS automation adapters (issue #10: keyboard shortcut synthesis; issue #11: application/file/URL launch actions; issue #12: media transport and master-scope volume actions). Windows ships real backends via the audited enigo and open wrappers; every other platform reports honest Unsupported with no fallback. No input capture, no shell, no argument interpolation."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
