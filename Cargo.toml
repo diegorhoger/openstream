@@ -16,6 +16,7 @@ members = [
     "crates/openstream-crypto",
     "crates/openstream-mobile-ffi",
     "integrations/os-automation",
+    "integrations/os-obs",
 ]
 
 [workspace.package]
