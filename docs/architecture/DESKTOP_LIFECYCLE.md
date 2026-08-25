@@ -10,7 +10,7 @@ Status: shipped in M1 (issue #16). Composes the merged Engine (#9, #14), adapter
 | Durable evidence | `ActionRuntime` over `SqliteJournal` (issue #15 open pipeline: WAL, `synchronous=FULL`, integrity verification, forward-only migrations) |
 | Crash recovery | On every restart, prepared-without-terminal records close as `outcome_unknown` via `recover_outcome_unknown`; success is never inferred, nothing auto-retries |
 | System tray | Typed state model (`src/menu.rs`) rendered deterministically; the adapter only translates specs onto widgets |
-| Single instance | Exclusive file lock acquired before any window/tray/store exists (`src/single_instance.rs`) |
+| Single instance | Exclusive file lock acquired before any window/tray/store exists (`src/single_instance.rs`); an unresolvable guard REFUSES startup (fail closed) |
 | Graceful shutdown | Fixed exactly-once step order (`src/shutdown.rs`); failures are reported, never fatal, never skip later steps |
 | Autostart | OFF by default; changes only through explicit tray-menu user action |
 
@@ -36,7 +36,7 @@ Exactly two artifacts are ever created, both inside the data directory resolved 
 | Execution journal store | `<data dir>/journal.sqlite3` (+ WAL/SHM sidecars while running) | Durable admission/prepared/terminal evidence (issue #15) | First launch (documented product behavior) |
 | Instance lock | `<data dir>/openstream.lock` | Single-instance guard | First launch |
 
-Data directory per platform: Windows `%APPDATA%\OpenStream`; macOS `~/Library/Application Support/OpenStream`; Linux `$XDG_DATA_HOME/OpenStream` or `~/.local/share/OpenStream`.
+Data directory per platform: Windows `%APPDATA%\OpenStream`; macOS `~/Library/Application Support/OpenStream`; Linux `$XDG_DATA_HOME/OpenStream` or `~/.local/share/OpenStream`. If NO data directory can be resolved, the process refuses to start with a logged typed reason and a non-zero exit code — it never runs without its documented persistence home.
 
 Nothing else is written: no telemetry, no caches, no hidden preference files. The autostart preference lives ONLY as the OS registration itself (see below) so there is no second store to drift.
 
@@ -46,16 +46,18 @@ Nothing else is written: no telemetry, no caches, no hidden preference files. Th
 - Value name: `OpenStream`
 - Value: quoted absolute path of the running executable (`REG_SZ`)
 - No elevation, no service, no scheduled task, no arguments.
-- Enable/disable happen only from an explicit tray-menu action; disable is idempotent. The tray checkbox always reflects OS truth read back from the registry.
+- Enable/disable happen only from an explicit tray-menu action; disable is idempotent. The tray checkbox reflects read-back registry truth: ONLY a missing subkey/value reads as Disabled — access-denied or other registry I/O failures surface as an explicit query-failure state instead of masquerading as Disabled.
 - macOS/Linux: not implemented this milestone (see matrix).
 
 ## Single-instance mechanism
 
 The lock is an OS-level exclusive file lock (`std::fs`) held on `<data dir>/openstream.lock` for the process lifetime. The kernel releases it when the holder exits for any reason — including crashes — so a previous crash can never wedge startup behind a stale marker. A second launch exits silently BEFORE creating windows, tray, or store connections: there is never a second writer or double tray.
 
+Fail-closed rule: if the guard cannot be acquired for ANY other reason (lock directory unwritable, unexpected I/O class), startup is REFUSED — logged typed reason `guard-unavailable`, non-zero exit — rather than running a shell that could not guarantee exclusivity. The refusal decision and both outcomes are covered by unit tests over real locks.
+
 ## Shutdown order
 
-Quit (tray menu or OS session end) runs these steps exactly once, each best-effort:
+Quitting (tray menu or OS session end) runs these steps exactly once per process — an atomic compare-exchange gate admits a single winner BEFORE any task is built, so the first step genuinely renders and every later caller no-ops. All controlled exit paths funnel through the same gate:
 
 1. Tray renders its shutting-down presentation (every item disabled).
 2. Engine runtime drops → its SQLite connection closes cleanly (SQLite auto-checkpoints the WAL on close).
@@ -63,11 +65,12 @@ Quit (tray menu or OS session end) runs these steps exactly once, each best-effo
 4. Store handle drops (last reference closes the database).
 5. Instance lock releases.
 
-A step's failure is recorded and remaining steps still run; exit always proceeds. This is safe by construction because committed evidence already survives process death (`WAL` + `synchronous=FULL`, issue #15) — the sequencer adds order and honesty, not durability risk.
+A step's failure is recorded and remaining steps still run; exit always proceeds. This is safe by construction because committed evidence already survives process death (`WAL` + `synchronous=FULL`, issue #15) — the sequencer adds order and honesty, not durability risk. A crash skips the sequencer entirely; that window belongs to restart recovery below, not to this path.
 
 ## Crash-recovery semantics
 
 - A crash between `prepared` and terminal evidence leaves an unresolved preparation; the next restart closes it as `outcome_unknown` and the tray shows "N executions outcome unknown after restart (review required)".
+- A store that went through the damage remedy ladder (backup restore or quarantine-and-recreate) NEVER presents as plain "running": the tray shows a distinct recovered state — "journal recovered from damage; some execution history may be missing" — plus a matching log line, because rolled-back history is a fact users must see.
 - `outcome_unknown` executions stay pending human review; they are exempt from pruning and are never replayed automatically (replay requires idempotency-declared graphs through the engine's own gate, wired in a later milestone).
 - Damaged stores go through the issue #15 remedy ladder: restore a validated backup, else quarantine damaged files (preserved byte-for-byte) and recreate fresh. The tray/degraded path states what happened; nothing is silently destroyed or guessed.
 

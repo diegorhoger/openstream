@@ -72,6 +72,20 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
+impl ShellHandles {
+    /// Exactly-once gate for the graceful-shutdown sequence: the winner
+    /// flips the flag and runs the sequencer (its first task re-renders the
+    /// tray into the shutting-down presentation); every loser observes the
+    /// flip and does nothing. All controlled exit paths — tray Quit and OS
+    /// session end alike — funnel through this single gate via
+    /// `RunEvent::ExitRequested`.
+    fn begin_shutdown(&self) -> bool {
+        self.shutdown_started
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+    }
+}
+
 /// The one application handle, installed before any widget work happens.
 static APP: std::sync::OnceLock<AppHandle> = std::sync::OnceLock::new();
 
@@ -259,8 +273,26 @@ release_task!(
     "Releases the single-instance lock file."
 );
 
-/// Runs the fixed graceful-shutdown order exactly once per process.
+/// Runs the fixed graceful-shutdown order at most once per process: an
+/// atomic compare-exchange gate decides a single winner before any task is
+/// built, so the tray's shutting-down presentation is guaranteed to render
+/// exactly once, ahead of teardown. A crash skips the sequencer entirely —
+/// that window belongs to journal-backed restart recovery, not to this
+/// path.
 fn run_graceful_shutdown() {
+    let Some(app) = current_app() else {
+        return;
+    };
+    let handles = app.state::<ShellHandles>();
+    if !handles.begin_shutdown() {
+        return;
+    }
+    execute_shutdown_sequence();
+}
+
+/// The ordered, failure-tolerant teardown itself (stateless; callable only
+/// after the gate above has flipped).
+fn execute_shutdown_sequence() {
     let mut tasks: Vec<Box<dyn ShutdownTask>> = vec![
         Box::new(MarkShuttingDownTask),
         Box::new(CloseRuntimeTask),
@@ -278,67 +310,122 @@ fn run_graceful_shutdown() {
     );
 }
 
-fn main() {
-    let env_reader = |key: &str| std::env::var(key).ok();
-    let data_dir = paths::resolve_data_dir(&env_reader);
+/// Everything prepared before the Tauri builder runs; ownership moves into
+/// managed state during setup.
+struct StartupPreparation {
+    instance_lock: Option<InstanceLock>,
+    runtime: Option<ActionRuntime>,
+    journal_store: Option<SharedJournal>,
+    health: ShellHealth,
+}
 
-    // Single-instance FIRST: a second launch never opens windows, tray,
-    // or the journal store.
-    let mut instance_lock = None;
-    let mut exclusivity_unavailable = false;
-    if let Some(dir) = &data_dir {
-        match InstanceLock::acquire(dir) {
-            Ok(held) => instance_lock = Some(held),
-            Err(InstanceLockError::AlreadyRunning) => {
-                eprintln!("OpenStream is already running; exiting this launch.");
-                return;
-            }
-            Err(refused) => {
-                eprintln!(
-                    "openstream-desktop: single-instance guard unavailable ({refused}); continuing without exclusivity."
-                );
-                exclusivity_unavailable = true;
-            }
+/// Typed startup refusals (closed vocabulary, safe to log verbatim).
+const REFUSED_ALREADY_RUNNING: &str = "already-running";
+const REFUSED_GUARD_UNAVAILABLE: &str = "guard-unavailable";
+const REFUSED_DATA_DIR_UNKNOWN: &str = "data-directory-unknown";
+
+/// Health strictly from durable startup facts. Precedence: pending review
+/// beats recovery-with-loss beats ready — a restored/quarantined store must
+/// never present as plain "running", but review-required evidence is the
+/// most urgent truth when both apply.
+fn shell_health_from(report: &recovery::StartupReport) -> ShellHealth {
+    if report.unknown_outcome_executions > 0 {
+        ShellHealth::NeedsReview {
+            unknown_outcome_executions: report.unknown_outcome_executions,
         }
+    } else if matches!(
+        report.store_outcome,
+        recovery::StoreOutcome::Recovered { .. }
+    ) {
+        ShellHealth::JournalRecovered
+    } else {
+        ShellHealth::Ready
     }
+}
 
-    // Startup composition; crash recovery happens inside.
-    let (health, composition) = match (&data_dir, exclusivity_unavailable) {
-        (None, _) => (ShellHealth::DataDirectoryUnknown, None),
-        (Some(_), true) => (ShellHealth::PersistenceDegraded, None),
-        (Some(dir), false) => match recovery::compose_shell_runtime(dir) {
-            Ok(composed) => {
-                let health = if composed.report.unknown_outcome_executions > 0 {
-                    ShellHealth::NeedsReview {
-                        unknown_outcome_executions: composed.report.unknown_outcome_executions,
-                    }
-                } else {
-                    ShellHealth::Ready
-                };
-                for admission in composed.journal.snapshot_admissions() {
-                    if admission.lifecycle == JournalLifecycle::OutcomeUnknown {
-                        eprintln!(
-                            "openstream-desktop: execution {} awaits review (outcome unknown)",
-                            admission.execution_id
-                        );
-                    }
-                }
-                (health, Some(composed))
-            }
-            Err(error) => {
-                eprintln!(
-                    "openstream-desktop: persistence degraded ({error:?}); starting without the execution journal."
-                );
-                (ShellHealth::PersistenceDegraded, None)
-            }
-        },
+/// Prepares everything startup needs, or refuses. FAIL CLOSED on
+/// exclusivity: if the single-instance guard cannot be acquired for ANY
+/// reason other than a confirmed second launch, or no data directory can
+/// be resolved at all, the process refuses to start rather than running an
+/// unguarded shell (`Err` tokens are closed-vocabulary and logged).
+///
+/// The happy path acquires the lock BEFORE composing the journal so a
+/// second launch never becomes a second store connection.
+fn prepare_startup(data_dir: Option<&std::path::Path>) -> Result<StartupPreparation, &'static str> {
+    let Some(dir) = data_dir else {
+        return Err(REFUSED_DATA_DIR_UNKNOWN);
     };
 
-    // Destructure once so ownership can move into managed state.
+    let instance_lock = match InstanceLock::acquire(dir) {
+        Ok(held) => held,
+        Err(InstanceLockError::AlreadyRunning) => return Err(REFUSED_ALREADY_RUNNING),
+        Err(_) => return Err(REFUSED_GUARD_UNAVAILABLE),
+    };
+
+    // Startup composition; crash recovery happens inside.
+    let (health, composition) = match recovery::compose_shell_runtime(dir) {
+        Ok(composed) => {
+            let health = shell_health_from(&composed.report);
+            if health == ShellHealth::JournalRecovered {
+                eprintln!(
+                    "openstream-desktop: journal recovered from damage; some execution history may be missing"
+                );
+            }
+            for admission in composed.journal.snapshot_admissions() {
+                if admission.lifecycle == JournalLifecycle::OutcomeUnknown {
+                    eprintln!(
+                        "openstream-desktop: execution {} awaits review (outcome unknown)",
+                        admission.execution_id
+                    );
+                }
+            }
+            (health, Some(composed))
+        }
+        Err(error) => {
+            eprintln!(
+                "openstream-desktop: persistence degraded ({error:?}); starting without the execution journal."
+            );
+            (ShellHealth::PersistenceDegraded, None)
+        }
+    };
+
     let (runtime, journal_store) = match composition {
         Some(composed) => (Some(composed.runtime), Some(composed.journal)),
         None => (None, None),
     };
+
+    Ok(StartupPreparation {
+        instance_lock: Some(instance_lock),
+        runtime,
+        journal_store,
+        health,
+    })
+}
+
+fn main() {
+    let env_reader = |key: &str| std::env::var(key).ok();
+    let data_dir = paths::resolve_data_dir(&env_reader);
+
+    // Single-instance FIRST and FAIL CLOSED: a second launch exits this
+    // launch silently; an unavailable guard refuses startup outright so an
+    // unguarded shell can never exist.
+    let preparation = match prepare_startup(data_dir.as_deref()) {
+        Ok(prepared) => prepared,
+        Err(reason) => {
+            if reason == REFUSED_ALREADY_RUNNING {
+                eprintln!("OpenStream is already running; exiting this launch.");
+                return;
+            }
+            eprintln!("openstream-desktop: refusing to start ({reason}).");
+            std::process::exit(1);
+        }
+    };
+    let StartupPreparation {
+        instance_lock,
+        runtime,
+        journal_store,
+        health,
+    } = preparation;
 
     tauri::Builder::default()
         .setup(move |app| {
@@ -390,15 +477,20 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{ShellHandles, current_autostart_state};
+    use super::{
+        REFUSED_ALREADY_RUNNING, REFUSED_DATA_DIR_UNKNOWN, REFUSED_GUARD_UNAVAILABLE, ShellHandles,
+        current_autostart_state, prepare_startup, shell_health_from,
+    };
     use crate::autostart::{AutostartBackend, AutostartOperation, AutostartStatus, FakeAutostart};
-    use crate::menu::AutostartMenuState;
+    use crate::menu::{AutostartMenuState, ShellHealth};
+    use crate::single_instance::InstanceLock;
     use std::sync::Mutex;
     use std::sync::atomic::AtomicBool;
+    use tempfile::TempDir;
 
     fn handles_with(backend: Box<dyn AutostartBackend>) -> ShellHandles {
         ShellHandles {
-            health: Mutex::new(crate::menu::ShellHealth::Ready),
+            health: Mutex::new(ShellHealth::Ready),
             autostart: Mutex::new(backend),
             autostart_failure: Mutex::new(None),
             tray: Mutex::new(None),
@@ -407,6 +499,106 @@ mod tests {
             instance_lock: Mutex::new(None),
             shutdown_started: AtomicBool::new(false),
         }
+    }
+
+    #[test]
+    fn shutdown_gate_admits_exactly_one_winner() {
+        let handles = handles_with(Box::new(FakeAutostart::default()));
+        assert!(handles.begin_shutdown(), "first caller wins the gate");
+        assert!(!handles.begin_shutdown(), "every later caller must no-op");
+    }
+
+    fn report(
+        store: crate::recovery::StoreOutcome,
+        unknown: usize,
+    ) -> crate::recovery::StartupReport {
+        crate::recovery::StartupReport {
+            store_outcome: store,
+            quarantined_files: 0,
+            backup_restored: false,
+            reconciled_crash_windows: 0,
+            unknown_outcome_executions: unknown,
+        }
+    }
+
+    #[test]
+    fn health_mapping_prefers_review_then_recovery_then_ready() {
+        use crate::recovery::StoreOutcome;
+        use openstream_persistence::sqlite::RecoveryOutcome;
+
+        assert_eq!(
+            shell_health_from(&report(StoreOutcome::Fresh, 2)),
+            ShellHealth::NeedsReview {
+                unknown_outcome_executions: 2
+            },
+            "review-required evidence is the most urgent truth"
+        );
+        assert_eq!(
+            shell_health_from(&report(
+                StoreOutcome::Recovered {
+                    outcome: RecoveryOutcome::QuarantinedAndRecreated
+                },
+                0
+            )),
+            ShellHealth::JournalRecovered,
+            "recovery with potential evidence loss never reads as plain running"
+        );
+        assert_eq!(
+            shell_health_from(&report(
+                StoreOutcome::Recovered {
+                    outcome: RecoveryOutcome::RestoredFromBackup
+                },
+                0
+            )),
+            ShellHealth::JournalRecovered,
+            "backup restore also rewinds history; it surfaces identically"
+        );
+        assert_eq!(
+            shell_health_from(&report(StoreOutcome::OpenedExisting, 0)),
+            ShellHealth::Ready
+        );
+    }
+
+    #[test]
+    fn prepare_startup_refuses_when_the_guard_is_unavailable() {
+        // A FILE where the lock directory belongs makes create_dir_all fail:
+        // startup must refuse instead of continuing unguarded (F3).
+        let dir = TempDir::new().expect("temp dir");
+        let blocker = dir.path().join("blocker");
+        std::fs::write(&blocker, b"not a directory").expect("blocker written");
+        assert_eq!(
+            prepare_startup(Some(&blocker)).err(),
+            Some(REFUSED_GUARD_UNAVAILABLE)
+        );
+    }
+
+    #[test]
+    fn prepare_startup_detects_second_instance_before_any_store_connection() {
+        let dir = TempDir::new().expect("temp dir");
+        let _holder = InstanceLock::acquire(dir.path()).expect("holder");
+        assert_eq!(
+            prepare_startup(Some(dir.path())).err(),
+            Some(REFUSED_ALREADY_RUNNING)
+        );
+    }
+
+    #[test]
+    fn prepare_startup_happy_path_composes_a_ready_unguarded_free_shell() {
+        let dir = TempDir::new().expect("temp dir");
+        let prepared = prepare_startup(Some(dir.path())).expect("prepares");
+        assert_eq!(prepared.health, ShellHealth::Ready);
+        assert!(prepared.instance_lock.is_some(), "lock held for lifetime");
+        assert!(prepared.runtime.is_some());
+        assert!(prepared.journal_store.is_some());
+    }
+
+    #[test]
+    fn prepare_startup_without_data_directory_fails_closed() {
+        assert_eq!(
+            prepare_startup(None).err(),
+            Some(REFUSED_DATA_DIR_UNKNOWN),
+            "no data dir means no exclusivity and no documented store home"
+        );
     }
 
     #[test]

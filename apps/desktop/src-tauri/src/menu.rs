@@ -46,11 +46,14 @@ pub enum ShellHealth {
         /// Number of executions with unknown outcome after reconciliation.
         unknown_outcome_executions: usize,
     },
+    /// The journal store was damaged and went through the documented
+    /// remedy ladder (backup restore or quarantine-and-recreate): the app
+    /// runs normally but some prior execution history may be missing.
+    /// Surfaced honestly instead of reporting plain "running".
+    JournalRecovered,
     /// Persistence refused to open even after recovery: no execution
     /// authority is composed and nothing pretends otherwise.
     PersistenceDegraded,
-    /// No data directory could be resolved on this host.
-    DataDirectoryUnknown,
 }
 
 /// Tray rendering of the autostart capability for the current platform.
@@ -109,9 +112,9 @@ fn health_tooltip(health: &ShellHealth) -> String {
         ShellHealth::PersistenceDegraded => {
             format!("{APP_NAME} - degraded: execution journal unavailable")
         }
-        ShellHealth::DataDirectoryUnknown => {
-            format!("{APP_NAME} - degraded: data directory unknown")
-        }
+        ShellHealth::JournalRecovered => format!(
+            "{APP_NAME} - running - journal recovered from damage; some execution history may be missing"
+        ),
     }
 }
 
@@ -298,13 +301,24 @@ mod tests {
             store.tooltip,
             "OpenStream - degraded: execution journal unavailable"
         );
+    }
 
-        let dir = render_tray_menu(
-            &ShellHealth::DataDirectoryUnknown,
+    #[test]
+    fn recovered_journal_surfaces_evidence_loss_instead_of_plain_running() {
+        // A quarantined-and-recreated or backup-restored store must NEVER
+        // present as ordinary "running": prior history may be missing.
+        let model = render_tray_menu(
+            &ShellHealth::JournalRecovered,
             &AutostartMenuState::Available { enabled: false },
             false,
         );
-        assert_eq!(dir.tooltip, "OpenStream - degraded: data directory unknown");
+        assert_eq!(
+            model.tooltip,
+            "OpenStream - running - journal recovered from damage; some execution history may be missing"
+        );
+        assert_ne!(model.tooltip, "OpenStream - running");
+        // The shell stays interactive: recovery succeeded, authority intact.
+        assert!(model.items.iter().all(|item| item.enabled));
     }
 
     #[test]

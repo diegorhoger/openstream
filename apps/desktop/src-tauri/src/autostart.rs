@@ -95,6 +95,22 @@ pub enum AutostartStatus {
     Disabled,
 }
 
+/// Maps a registry key-open failure to an honest answer: ONLY a missing
+/// subkey means "nothing registered" (healthy [`AutostartStatus::Disabled`]);
+/// every other failure class — access denied, I/O errors, corruption — is a
+/// refusal, because guessing Disabled would misreport OS truth as an
+/// unchecked toggle.
+#[cfg(target_os = "windows")]
+fn map_registry_open_error(kind: std::io::ErrorKind) -> Result<AutostartStatus, AutostartError> {
+    if kind == std::io::ErrorKind::NotFound {
+        Ok(AutostartStatus::Disabled)
+    } else {
+        Err(AutostartError::BackendRefused {
+            operation: AutostartOperation::Read,
+        })
+    }
+}
+
 /// Platform boundary for reading/toggling launch-at-login.
 ///
 /// Implementations must be idempotent where meaningful: disabling an
@@ -228,11 +244,9 @@ mod windows_impl {
 
     impl WindowsRegistryAutostart {
         fn read_status_raw(&self, root: &RegKey) -> Result<AutostartStatus, AutostartError> {
-            let run_key = root.open_subkey_with_flags(&self.subkey, KEY_READ);
-            let Ok(run_key) = run_key else {
-                // A missing Run subkey means nothing is registered anywhere:
-                // that is a healthy Disabled answer, not a refusal.
-                return Ok(AutostartStatus::Disabled);
+            let run_key = match root.open_subkey_with_flags(&self.subkey, KEY_READ) {
+                Ok(key) => key,
+                Err(error) => return super::map_registry_open_error(error.kind()),
             };
             match run_key.get_raw_value(&self.value_name) {
                 Ok(_) => Ok(AutostartStatus::Enabled),
@@ -318,6 +332,36 @@ mod windows_tests {
         let _ = root
             .open_subkey_with_flags(r"Software\OpenStream\Tests", KEY_WRITE)
             .and_then(|parent| parent.delete_subkey_all(leaf));
+        // Then remove now-empty test scaffolding parents. delete_subkey
+        // refuses non-empty keys, so this can never destroy anything the
+        // tests did not create themselves (parallel runs keep leaves alive
+        // and the parent deletion fails harmlessly).
+        let _ = root
+            .open_subkey_with_flags(r"Software\OpenStream", KEY_WRITE)
+            .and_then(|parent| parent.delete_subkey("Tests"));
+        let _ = root.delete_subkey(r"Software\OpenStream");
+    }
+
+    #[test]
+    fn registry_open_failures_distinguish_disabled_from_refused() {
+        use super::{AutostartError, AutostartOperation, AutostartStatus, map_registry_open_error};
+        use std::io::ErrorKind;
+
+        // A missing subkey is a healthy Disabled answer.
+        assert_eq!(
+            map_registry_open_error(ErrorKind::NotFound),
+            Ok(AutostartStatus::Disabled)
+        );
+        // Access denied or any other registry I/O failure is a refusal:
+        // reporting Disabled would show OS truth as an unchecked toggle.
+        for refused_kind in [ErrorKind::PermissionDenied, ErrorKind::Other] {
+            assert_eq!(
+                map_registry_open_error(refused_kind),
+                Err(AutostartError::BackendRefused {
+                    operation: AutostartOperation::Read,
+                })
+            );
+        }
     }
 
     #[test]
