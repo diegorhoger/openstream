@@ -9,10 +9,12 @@
 //! [`ExecutionJournal::unresolved_prepared`]; it is never inferred as
 //! success and never automatically retried for non-idempotent adapters.
 //!
-//! Persistence is a trait port this milestone: SQLite arrives with #15.
-//! [`MemoryJournal`] is the authoritative in-memory implementation with
-//! fail-closed capacity bounds; tests inject fault fakes behind the same
-//! trait to prove that refused writes block dispatch.
+//! Persistence is a trait port; [`crate::journal::MemoryJournal`] is the
+//! authoritative in-memory implementation with fail-closed capacity bounds;
+//! tests inject fault fakes behind the same trait to prove that refused
+//! writes block dispatch. The durable realization lives in
+//! `openstream_persistence::sqlite` (`SqliteJournal`, issue #15) and must
+//! preserve these exact semantics.
 
 use crate::domain_ids::ExecutionId;
 use crate::graph::NodeKey;
@@ -206,9 +208,9 @@ pub trait ExecutionJournal: core::fmt::Debug + Send {
 }
 
 /// Authoritative in-memory implementation. Insertion order preserved;
-/// lookups indexed; every bound fails closed.
-///
-/// Persistence arrives with #15; this type is what that layer adopts.
+/// lookups indexed; every bound fails closed. The durable counterpart is
+/// `openstream_persistence::sqlite::SqliteJournal`, which adopts these
+/// exact semantics.
 #[derive(Debug, Default)]
 pub struct MemoryJournal {
     admissions: Vec<AdmissionEntry>,

@@ -11,6 +11,12 @@ workspace = true
 
 [dependencies]
 openstream-domain = { path = "../openstream-domain" }
+openstream-engine = { path = "../openstream-engine" }
+# Local storage engine (TECHNICAL_SPEC §2: "SQLite WAL with explicit
+# migrations"). Pinned exactly and compiled from source via `bundled` so the
+# audited SQLite version cannot drift with the host OS; no system-library
+# variance, no dynamic-link surprise.
+rusqlite = { version = "=0.40.2", features = ["backup", "bundled"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 # Windows Credential Manager backend. Default features are disabled so no
@@ -21,4 +27,6 @@ keyring = { version = "=3.6.3", default-features = false, features = [
 ] }
 
 [dev-dependencies]
+proptest = "=1.11.0"
+tempfile = "=3.27.0"
 uuid = { version = "=1.25.0", features = ["v7"] }
