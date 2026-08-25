@@ -35,10 +35,11 @@ use std::cmp::Reverse;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-/// Highest schema version this build implements. v1 is this issue's initial
-/// release schema; future versions extend [`MIGRATIONS`] with exactly one
-/// forward step each.
-pub const SCHEMA_VERSION: u32 = 1;
+/// Highest schema version this build implements. v1 shipped the
+/// execution-journal evidence tables; v2 added the authored workspace
+/// documents table (issue #17). Future versions extend [`MIGRATIONS`] with
+/// exactly one forward step each.
+pub const SCHEMA_VERSION: u32 = 2;
 
 /// One forward-only migration step. Steps form a contiguous chain
 /// `0 -> 1 -> ... -> SCHEMA_VERSION`; each executes once inside a single
@@ -61,14 +62,22 @@ impl fmt::Display for Migration {
 }
 
 /// The released migration chain. v1 ships the execution-journal evidence
-/// tables (`migrations/sqlite/0001_initial.sql`). New releases append
-/// exactly one step per schema bump; nothing here is ever edited or
-/// reordered after release.
-pub(crate) const MIGRATIONS: &[Migration] = &[Migration {
-    from: 0,
-    to: 1,
-    sql: include_str!("../../../../migrations/sqlite/0001_initial.sql"),
-}];
+/// tables (`migrations/sqlite/0001_initial.sql`); v2 ships the authored
+/// workspace documents table (`migrations/sqlite/0002_workspace_documents.sql`,
+/// issue #17). New releases append exactly one step per schema bump; nothing
+/// here is ever edited or reordered after release.
+pub(crate) const MIGRATIONS: &[Migration] = &[
+    Migration {
+        from: 0,
+        to: 1,
+        sql: include_str!("../../../../migrations/sqlite/0001_initial.sql"),
+    },
+    Migration {
+        from: 1,
+        to: 2,
+        sql: include_str!("../../../../migrations/sqlite/0002_workspace_documents.sql"),
+    },
+];
 
 /// Busy timeout granted to contending writers. Single-process ownership is
 /// the product model; this only smooths transient contention (backup
@@ -185,18 +194,21 @@ fn prepare(
     chain: &[Migration],
 ) -> Result<(), StorageError> {
     verify_integrity(connection)?;
-    match classify(connection)? {
-        Layout::Fresh => {}
-        Layout::Versioned(version) => {
-            if version > target {
-                return Err(StorageError::SchemaTooNew {
-                    found: version,
-                    supported: target,
-                });
-            }
-        }
+    let layout = classify(connection)?;
+    // A fresh install has nothing to lose: multi-step creation must not
+    // produce pre-migration backup artifacts for databases that did not
+    // exist before this open. Only genuine upgrades of existing stores
+    // take the verified-backup detour.
+    let existed = matches!(layout, Layout::Versioned(_));
+    if let Layout::Versioned(version) = layout
+        && version > target
+    {
+        return Err(StorageError::SchemaTooNew {
+            found: version,
+            supported: target,
+        });
     }
-    upgrade(connection, path, target, chain)
+    upgrade(connection, path, target, chain, existed)
 }
 
 fn verify_integrity(connection: &rusqlite::Connection) -> Result<(), StorageError> {
@@ -282,6 +294,7 @@ fn upgrade(
     path: &Path,
     target: u32,
     chain: &[Migration],
+    existed: bool,
 ) -> Result<(), StorageError> {
     let mut version = match classify(connection)? {
         Layout::Fresh => 0,
@@ -294,7 +307,7 @@ fn upgrade(
             .ok_or(StorageError::MigrationMissing { from: version })?;
         // Existing data is backed up and the backup verified BEFORE any DDL
         // runs. Fresh installs (nothing yet to lose) skip this.
-        if version > 0 {
+        if existed && version > 0 {
             take_verified_backup(connection, path, step.to, version)?;
         }
         let transaction = connection
@@ -591,15 +604,20 @@ mod tests {
         }
     }
 
-    /// The v1 -> v2 shape every future upgrade takes: existing data gets a
-    /// VERIFIED backup before DDL runs, the step applies atomically, and
-    /// evidence survives with its history intact.
+    /// The v(N-1) -> vN shape every future upgrade takes: existing data gets
+    /// a VERIFIED backup before DDL runs, the step applies atomically, and
+    /// evidence survives with its history intact. Anchored to the REAL
+    /// released chain (upgrades a store at `SCHEMA_VERSION - 1`), so a new
+    /// release exercises this path against its actual step.
     #[test]
     fn upgrading_existing_data_backs_up_first_and_preserves_rows() {
         let (_dir, path) = scratch("upgrade-with-backup");
-        // Build a populated v1 store through the real chain.
+        let prior_version = SCHEMA_VERSION - 1;
+        // Build a populated store anchored at the previous release schema,
+        // exactly as the prior build left it.
         {
-            let connection = open_with(&path, MIGRATIONS).expect("seed");
+            let connection = open_with(&path, &MIGRATIONS[..prior_version as usize])
+                .expect("seed at previous release");
             connection
                 .execute_batch(
                     "INSERT INTO journal_admissions
@@ -609,18 +627,17 @@ mod tests {
                 )
                 .expect("seed row");
         }
-        // Stand-in chain: the pipeline target derives from the chain's last
-        // step, exactly as a future v2 release would drive it.
-        let extended = [
-            MIGRATIONS[0],
-            Migration {
-                from: 1,
-                to: 2,
-                sql: "ALTER TABLE journal_admissions
-                      ADD COLUMN note TEXT NOT NULL DEFAULT '';
-                      UPDATE openstream_schema SET value = 2;",
-            },
-        ];
+        // Stand-in chain: the real steps plus one synthetic next step, the
+        // pipeline target derives from the chain's last step, exactly as a
+        // future release would drive it.
+        let mut extended = MIGRATIONS.to_vec();
+        extended.push(Migration {
+            from: SCHEMA_VERSION,
+            to: SCHEMA_VERSION + 1,
+            sql: "ALTER TABLE journal_admissions
+                  ADD COLUMN note TEXT NOT NULL DEFAULT '';
+                  UPDATE openstream_schema SET value = 3;",
+        });
         let connection = open_with(&path, &extended).expect("upgrade");
         let note: String = connection
             .query_row(
@@ -633,14 +650,16 @@ mod tests {
         let version: u32 = connection
             .query_row("SELECT value FROM openstream_schema", [], |row| row.get(0))
             .expect("anchor");
-        assert_eq!(version, 2);
+        assert_eq!(version, SCHEMA_VERSION + 1);
 
-        // The backup was produced BEFORE the step and still anchors at v1.
-        let backup = rusqlite::Connection::open(backup_path_for(&path, 2)).expect("backup opens");
+        // The backup was produced BEFORE the final step and still anchors
+        // at the version that step upgraded from.
+        let backup = rusqlite::Connection::open(backup_path_for(&path, SCHEMA_VERSION + 1))
+            .expect("backup opens");
         let backup_version: u32 = backup
             .query_row("SELECT value FROM openstream_schema", [], |row| row.get(0))
             .expect("backup anchor");
-        assert_eq!(backup_version, 1);
+        assert_eq!(backup_version, SCHEMA_VERSION);
         let seeded: i64 = backup
             .query_row("SELECT count(*) FROM journal_admissions", [], |row| {
                 row.get(0)
@@ -654,18 +673,16 @@ mod tests {
     #[test]
     fn failed_step_rolls_back_to_prior_version() {
         let (_dir, path) = scratch("failed-step");
-        open_with(&path, MIGRATIONS).expect("seed at v1");
-        let broken = [
-            MIGRATIONS[0],
-            Migration {
-                from: 1,
-                to: 2,
-                sql: "CREATE TABLE doomed (id INTEGER PRIMARY KEY); INSERT INTO missing VALUES (1);",
-            },
-        ];
+        open_with(&path, MIGRATIONS).expect("seed at current schema");
+        let mut broken = MIGRATIONS.to_vec();
+        broken.push(Migration {
+            from: SCHEMA_VERSION,
+            to: SCHEMA_VERSION + 1,
+            sql: "CREATE TABLE doomed (id INTEGER PRIMARY KEY); INSERT INTO missing VALUES (1);",
+        });
         match open_with(&path, &broken) {
             Err(StorageError::MigrationFailed { from, to }) => {
-                assert_eq!((from, to), (1, 2))
+                assert_eq!((from, to), (SCHEMA_VERSION, SCHEMA_VERSION + 1))
             }
             other => panic!("expected typed rollback, got {other:?}"),
         }
@@ -673,7 +690,7 @@ mod tests {
         let version: u32 = connection
             .query_row("SELECT value FROM openstream_schema", [], |row| row.get(0))
             .expect("anchor intact");
-        assert_eq!(version, 1);
+        assert_eq!(version, SCHEMA_VERSION);
         let doomed_tables: i64 = connection
             .query_row(
                 "SELECT count(*) FROM sqlite_master WHERE name = 'doomed'",
@@ -689,23 +706,21 @@ mod tests {
     #[test]
     fn unavailable_backup_aborts_the_upgrade_before_ddl() {
         let (_dir, path) = scratch("backup-blocked");
-        open_with(&path, MIGRATIONS).expect("seed at v1");
+        open_with(&path, MIGRATIONS).expect("seed at current schema");
         // Occupy the exact backup target with a directory: the online-backup
         // destination cannot be opened there.
-        std::fs::create_dir(backup_path_for(&path, 2)).expect("occupy target");
-        let extended = [
-            MIGRATIONS[0],
-            Migration {
-                from: 1,
-                to: 2,
-                sql: "ALTER TABLE journal_admissions
-                      ADD COLUMN note TEXT NOT NULL DEFAULT '';
-                      UPDATE openstream_schema SET value = 2;",
-            },
-        ];
+        std::fs::create_dir(backup_path_for(&path, SCHEMA_VERSION + 1)).expect("occupy target");
+        let mut extended = MIGRATIONS.to_vec();
+        extended.push(Migration {
+            from: SCHEMA_VERSION,
+            to: SCHEMA_VERSION + 1,
+            sql: "ALTER TABLE journal_admissions
+                  ADD COLUMN note TEXT NOT NULL DEFAULT '';
+                  UPDATE openstream_schema SET value = 3;",
+        });
         match open_with(&path, &extended) {
             Err(StorageError::BackupUnavailable { target_version }) => {
-                assert_eq!(target_version, 2)
+                assert_eq!(target_version, SCHEMA_VERSION + 1)
             }
             other => panic!("expected backup abort, got {other:?}"),
         }
@@ -713,7 +728,7 @@ mod tests {
         let version: u32 = connection
             .query_row("SELECT value FROM openstream_schema", [], |row| row.get(0))
             .expect("anchor intact");
-        assert_eq!(version, 1, "DDL must not have started");
+        assert_eq!(version, SCHEMA_VERSION, "DDL must not have started");
     }
 
     #[test]
@@ -735,6 +750,6 @@ mod tests {
     fn versioned_layout_reads_the_anchor() {
         let (_dir, path) = scratch("layout-versioned");
         let connection = open_with(&path, MIGRATIONS).expect("open");
-        assert_eq!(classify(&connection), Ok(Layout::Versioned(1)));
+        assert_eq!(classify(&connection), Ok(Layout::Versioned(SCHEMA_VERSION)));
     }
 }

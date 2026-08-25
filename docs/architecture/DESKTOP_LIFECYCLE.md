@@ -29,16 +29,17 @@ Status: shipped in M1 (issue #16). Composes the merged Engine (#9, #14), adapter
 
 ## Persistence transparency (no hidden persistence)
 
-Exactly two artifacts are ever created, both inside the data directory resolved in `apps/desktop/src-tauri/src/paths.rs`:
+Exactly three artifacts are ever created, all inside the data directory resolved in `apps/desktop/src-tauri/src/paths.rs`:
 
 | Artifact | Path | Purpose | Created when |
 |---|---|---|---|
 | Execution journal store | `<data dir>/journal.sqlite3` (+ WAL/SHM sidecars while running) | Durable admission/prepared/terminal evidence (issue #15) | First launch (documented product behavior) |
+| Workspace store | `<data dir>/workspace.sqlite3` (+ WAL/SHM sidecars while running) | Authored deck/profile documents for the Studio editor (issue #17); created on the first Studio session open, including autosave-degraded sessions that only read | First Studio use |
 | Instance lock | `<data dir>/openstream.lock` | Single-instance guard | First launch |
 
 Data directory per platform: Windows `%APPDATA%\OpenStream`; macOS `~/Library/Application Support/OpenStream`; Linux `$XDG_DATA_HOME/OpenStream` or `~/.local/share/OpenStream`. If NO data directory can be resolved, the process refuses to start with a logged typed reason and a non-zero exit code — it never runs without its documented persistence home.
 
-Nothing else is written: no telemetry, no caches, no hidden preference files. The autostart preference lives ONLY as the OS registration itself (see below) so there is no second store to drift.
+Nothing else is written: no telemetry, no caches, no hidden preference files. The autostart preference lives ONLY as the OS registration itself (see below) so there is no second store to drift. The workspace store holds authored documents only; if its store cannot open or its contents fail domain validation, the Studio editor keeps running from memory and surfaces `saved = false` plus a typed token until persistence recovers (see `docs/architecture/STUDIO_EDITOR.md`).
 
 ## Autostart mechanism (Windows, opt-in only)
 

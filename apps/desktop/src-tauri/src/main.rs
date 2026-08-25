@@ -18,11 +18,13 @@
 //! - **Graceful shutdown:** quit (tray menu or OS session end) runs the
 //!   fixed, exactly-once step order from [`crate::shutdown`].
 //!
-//! Authority boundary: the WebView registers NO IPC commands and the
-//! capability file grants zero permissions, so effective power stays
-//! unchanged from M0 — native lifecycle plus durable evidence only. Per
-//! the PR #75 independent gate, NO source-visibility/input-mute OBS consent
-//! surface exists here or anywhere else in this milestone.
+//! Authority boundary: the WebView surface is the Studio editor (issue #17)
+//! and exposes exactly four local commands — load/apply/undo/redo over the
+//! validated domain documents, autosaved through the #15 pipeline. No OBS
+//! consent surface exists here or anywhere else in this milestone (PR #75
+//! gate): action *configuration* is not part of this milestone's op
+//! vocabulary at all. The capability file still grants zero plugin/core
+//! permissions.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -33,6 +35,7 @@ mod paths;
 mod recovery;
 mod shutdown;
 mod single_instance;
+mod studio;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};
@@ -428,6 +431,12 @@ fn main() {
     } = preparation;
 
     tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![
+            studio::studio_load,
+            studio::studio_apply,
+            studio::studio_undo,
+            studio::studio_redo
+        ])
         .setup(move |app| {
             let _ = APP.set(app.handle().clone());
 
@@ -441,6 +450,11 @@ fn main() {
                 instance_lock: Mutex::new(instance_lock),
                 shutdown_started: AtomicBool::new(false),
             });
+
+            // Studio session over the authored-document store; without a
+            // resolvable data dir it degrades to autosave-off honestly.
+            let studio_state = studio::StudioState::new(data_dir.as_deref());
+            app.manage(studio_state);
 
             let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))
                 .expect("bundled tray icon decodes");
