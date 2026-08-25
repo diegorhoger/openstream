@@ -13,6 +13,8 @@ use openstream_engine::{
     AdmissionEntry, DedupeKey, ExecutionId, JournalLifecycle, MessageId, NodeKey, PreparedEntry,
     SourceDeviceId,
 };
+#[allow(unused_imports)]
+pub use openstream_persistence::sqlite::JournalBounds;
 use std::path::PathBuf;
 
 /// A per-test scratch directory; removed when the guard drops.
