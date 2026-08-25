@@ -10,7 +10,18 @@ license.workspace = true
 tauri-build = { workspace = true }
 
 [dependencies]
-tauri = { workspace = true }
+tauri = { workspace = true, features = ["tray-icon", "image-png"] }
+openstream-engine = { path = "../../../crates/openstream-engine" }
+openstream-persistence = { path = "../../../crates/openstream-persistence" }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# Windows autostart registration backend (`HKCU\...\Run`, issue #16).
+# Already a transitive lockfile member via Tauri; pinned exactly per repo
+# policy. Safe wrapper only: this crate keeps `unsafe_code = "forbid"`.
+winreg = "=0.55.0"
+
+[dev-dependencies]
+tempfile = "=3.27.0"
 
 [lints]
 workspace = true

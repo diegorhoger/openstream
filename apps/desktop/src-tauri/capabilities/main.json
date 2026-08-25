@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Main window capability. Deny-by-default: grants zero IPC permissions. The M0 shell renders static UI and registers no Tauri commands, so the WebView has no invokable surface. Future permissions must be added explicitly with security review.",
+  "description": "Main window capability. Deny-by-default: grants zero IPC permissions. The M1 shell adds NATIVE lifecycle behavior only (tray, single-instance guard, opt-in autostart, graceful shutdown, journal-backed crash recovery); the WebView still has no invokable surface, no Tauri command is registered, and no source-visibility/input-mute consent surface exists. Future permissions must be added explicitly with security review.",
   "windows": ["main"],
   "permissions": []
 }
