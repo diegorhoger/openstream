@@ -106,6 +106,22 @@ export interface Profile {
   workspace_id: string;
   name: string;
   deck_ids: string[];
+  /** Explicit switch triggers bound to this profile (issue #19). */
+  switch_rules: SwitchRule[];
+}
+
+/** One explicit profile-switch trigger (closed Rust enum mirror). */
+export type SwitchTrigger =
+  | { kind: 'hotkey'; combo: string }
+  | { kind: 'app_focus'; app: string };
+
+/** A validated switch rule stored on its target profile. */
+export interface SwitchRule {
+  id: string;
+  profile_id: string;
+  workspace_id: string;
+  trigger: SwitchTrigger;
+  enabled: boolean;
 }
 
 /** Versioned envelope around one deck. */
@@ -183,7 +199,15 @@ export type StudioOp =
   | { type: 'delete_profile'; profile_id: string }
   | { type: 'profile_add_deck'; profile_id: string; deck_id: string }
   | { type: 'profile_remove_deck'; profile_id: string; deck_id: string }
-  | { type: 'profile_move_deck'; profile_id: string; deck_id: string; to_index: number };
+  | { type: 'profile_move_deck'; profile_id: string; deck_id: string; to_index: number }
+  | {
+      type: 'add_switch_rule';
+      profile_id: string;
+      trigger_kind: 'hotkey' | 'app_focus';
+      trigger_value: string;
+    }
+  | { type: 'remove_switch_rule'; profile_id: string; rule_id: string }
+  | { type: 'set_switch_rule_enabled'; profile_id: string; rule_id: string; enabled: boolean };
 
 /** v1 size ceilings — verbatim mirrors of `limits.rs` in the domain crate. */
 export const LIMITS = {
@@ -194,6 +218,8 @@ export const LIMITS = {
   maxPagesPerDeck: 256,
   maxControlsPerPage: 1024,
   maxDecksPerProfile: 128,
+  maxSwitchRulesPerProfile: 32,
+  maxAppIdentityBytes: 64,
 } as const;
 
 /** Supported document version this build reads. */

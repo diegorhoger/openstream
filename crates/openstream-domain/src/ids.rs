@@ -97,6 +97,11 @@ entity_id!(
     "grant"
 );
 entity_id!(
+    /// Identifier of one profile switch rule (issue #19).
+    SwitchRuleId,
+    "switch_rule"
+);
+entity_id!(
     /// Identifier of one engine execution (evidence subject in audit events).
     ExecutionId,
     "execution"

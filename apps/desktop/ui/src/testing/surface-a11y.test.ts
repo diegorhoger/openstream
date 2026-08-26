@@ -6,7 +6,7 @@ import {
   initialEditorState,
   type EditorState,
 } from '../studio/editor.ts';
-import { CATALOG, LOCALES, messagesFor, type LocaleId } from '../i18n/catalog.ts';
+import { CATALOG, LOCALES, formatMessage, messagesFor, type LocaleId } from '../i18n/catalog.ts';
 import { renderStudio, type StudioCallbacks } from '../studio/views/studio-view.ts';
 import { INITIAL_KEY_RUNTIME, type ExecutionPhase } from '../surface/machine.ts';
 import {
@@ -15,6 +15,11 @@ import {
   phaseAnnouncement,
   renderSurface,
 } from '../surface/views/surface-view.ts';
+import { renderSwitching } from '../surface/switching-view.ts';
+import type {
+  ConsentAction,
+  SwitchSurfaceState,
+} from '../surface/switching-types.ts';
 
 /**
  * Executable accessibility contract for the live deck surface (issue #18).
@@ -42,6 +47,7 @@ const ID = {
   mute: '018f6a1c-7b21-7003-9f31-00000000c001',
   camera: '018f6a1c-7b21-7003-9f31-00000000c002',
   viewers: '018f6a1c-7b21-7003-9f31-00000000c003',
+  profileMain: '018f6a1c-7b21-7004-9f31-000000000001',
 };
 
 const ALL_PHASES: readonly ExecutionPhase[] = [
@@ -111,7 +117,18 @@ function snapshotFixture(): Parameters<typeof editorReducer>[0]['snapshot'] {
         },
       },
     ],
-    profiles: [],
+    profiles: [
+      {
+        schema_version: { major: 1, minor: 0 },
+        profile: {
+          id: ID.profileMain,
+          workspace_id: '018f6a1c-7b21-7000-9f31-000000000000',
+          name: 'Streaming',
+          deck_ids: [ID.deckA],
+          switch_rules: [],
+        },
+      },
+    ],
   };
 }
 
@@ -179,6 +196,41 @@ function surfaceMarkup(
     },
   );
   return renderToStaticMarkup(renderStudio(baseReadyState(locale), noopCallbacks, liveContent));
+}
+
+/** Scripted switching engine state for the switching-panel contract. */
+function switchingFixture(options: {
+  granted?: boolean;
+  supported?: boolean;
+  issues?: string[];
+  boardConflict?: boolean;
+  active?: boolean;
+}): SwitchSurfaceState {
+  const granted = options.granted ?? true;
+  const supported = options.supported ?? true;
+  return {
+    active_profile: options.active === false ? null : ID.profileMain,
+    hotkeys: {
+      granted,
+      supported,
+      issues: options.issues ?? [],
+    },
+    app_focus: { granted, supported, issues: [] },
+    rule_count: 1,
+    board_conflict: options.boardConflict ?? false,
+  };
+}
+
+function switchingMarkup(
+  locale: LocaleId,
+  state: SwitchSurfaceState = switchingFixture({}),
+): string {
+  const messages = messagesFor(locale);
+  const panel = renderSwitching(
+    { messages, switching: state, snapshot: snapshotFixture() },
+    { onConsent: (_action: ConsentAction) => undefined },
+  );
+  return renderToStaticMarkup(panel);
 }
 
 describe('surface document contract', () => {
@@ -319,6 +371,83 @@ describe('failure and announcement regions', () => {
   });
 });
 
+describe('switching panel contract (issue #19)', () => {
+  it('renders a labelled section with heading order intact', () => {
+    for (const locale of LOCALES) {
+      const dom = switchingMarkup(locale);
+      assert.ok(dom.includes('id="switching-heading"'));
+      assert.ok(dom.includes(`>${messagesFor(locale)['surface.switching.heading']}</h2>`));
+      assert.doesNotMatch(dom, /tabindex/i);
+    }
+  });
+
+  it('states mechanism authority in words and names consent buttons', () => {
+    for (const locale of LOCALES) {
+      const messages = messagesFor(locale);
+      const hotkeyName = messages['surface.switching.hotkey.name'];
+      const grantLabel = formatMessage(messages['surface.switching.grant'], {
+        mechanism: hotkeyName,
+      });
+      const revokeLabel = formatMessage(messages['surface.switching.revoke'], {
+        mechanism: hotkeyName,
+      });
+      const granted = switchingMarkup(locale, switchingFixture({ granted: true }));
+      assert.ok(granted.includes(revokeLabel));
+      assert.ok(granted.includes(messages['surface.switching.granted']));
+      const denied = switchingMarkup(locale, switchingFixture({ granted: false }));
+      assert.ok(denied.includes(messages['surface.switching.notGranted']));
+      assert.ok(denied.includes(grantLabel));
+    }
+  });
+
+  it('never renders consent controls on unsupported platforms', () => {
+    for (const locale of LOCALES) {
+      const messages = messagesFor(locale);
+      const dom = switchingMarkup(
+        locale,
+        switchingFixture({ supported: false, issues: [`unsupported:${'windows'}`] }),
+      );
+      assert.ok(dom.includes(messages['surface.switching.unsupported']));
+      const revokeLabel = formatMessage(messages['surface.switching.revoke'], {
+        mechanism: messages['surface.switching.hotkey.name'],
+      });
+      assert.ok(!dom.includes(revokeLabel));
+    }
+  });
+
+  it('alerts when conflicting rules pause automatic switching', () => {
+    for (const locale of LOCALES) {
+      const dom = switchingMarkup(locale, switchingFixture({ boardConflict: true }));
+      assert.ok(dom.includes('role="alert"'));
+      assert.ok(dom.includes(messagesFor(locale)['surface.switching.boardConflict']));
+    }
+  });
+
+  it('localizes degradation tokens next to their mechanism', () => {
+    for (const locale of LOCALES) {
+      const messages = messagesFor(locale);
+      const dom = switchingMarkup(
+        locale,
+        switchingFixture({
+          issues: ['register-conflict:ctrl+shift+f5', 'focus-unreadable'],
+        }),
+      );
+      assert.ok(dom.includes('ctrl+shift+f5'));
+      assert.ok(dom.includes(messages['surface.switching.issue.focusUnreadable']));
+    }
+  });
+
+  it('resolves the active profile name and its absence honestly', () => {
+    for (const locale of LOCALES) {
+      const messages = messagesFor(locale);
+      const active = switchingMarkup(locale);
+      assert.ok(active.includes('Streaming'));
+      const inactive = switchingMarkup(locale, switchingFixture({ active: false }));
+      assert.ok(inactive.includes(messages['surface.switching.inactive']));
+    }
+  });
+});
+
 describe('localization coverage', () => {
   it('covers every new surface string somewhere in the phase × locale matrix', () => {
     for (const locale of LOCALES) {
@@ -349,6 +478,17 @@ describe('localization coverage', () => {
         surfaceMarkup(locale, { engineAvailable: false }),
         surfaceMarkup(locale, { empty: true }),
         surfaceMarkup(locale, { latched: true, announcementSeq: 2 }),
+        // Issue #19 switching panel across its visible states.
+        switchingMarkup(locale),
+        switchingMarkup(locale, switchingFixture({ granted: false })),
+        switchingMarkup(locale, switchingFixture({ supported: false, issues: ['unsupported:linux'] })),
+        switchingMarkup(locale, switchingFixture({ boardConflict: true, active: false })),
+        switchingMarkup(locale, switchingFixture({ issues: [
+          'register-conflict:ctrl+shift+f5',
+          'register-refused:ctrl+alt+f5',
+          'unregister-refused:ctrl+alt+f6',
+          'focus-unreadable',
+        ] })),
       ]
         .join('\n')
         .replace(/&#x27;/g, "'");

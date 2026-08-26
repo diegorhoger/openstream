@@ -25,6 +25,11 @@ import {
 /** Canonical lowercase hyphenated UUIDv7 (version nibble `7`, RFC variant). */
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
+/** Closed hotkey key vocabulary mirror (`switching.rs`): a-z, 0-9, f1-f24. */
+const HOTKEY_KEY = /^(?:[a-z]|[0-9]|f(?:[1-9]|1[0-9]|2[0-4]))$/;
+/** Closed modifier vocabulary in canonical order (`ctrl < alt < shift < meta`). */
+const MODIFIER_ORDER = ['ctrl', 'alt', 'shift', 'meta'] as const;
+
 export type ValidationToken = string;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -222,6 +227,85 @@ export function validateDeckDocument(document: unknown): ValidationToken[] {
 }
 
 /**
+ * Hotkey-combination grammar mirror (`HotkeyCombo::from_str`): at least one
+ * modifier plus exactly one key, canonical modifier order, no duplicates.
+ *
+ * @returns error tokens; an empty array means the combination is acceptable.
+ */
+export function hotkeyComboErrors(raw: unknown): ValidationToken[] {
+  if (typeof raw !== 'string' || raw.length === 0) {
+    return ['invalid_hotkey'];
+  }
+  const tokens = raw.split('+');
+  const modifiers: string[] = [];
+  let keys = 0;
+  for (const token of tokens) {
+    if (token.length === 0) {
+      return ['invalid_hotkey'];
+    }
+    if ((MODIFIER_ORDER as readonly string[]).includes(token)) {
+      if (modifiers.includes(token)) {
+        return ['invalid_hotkey'];
+      }
+      modifiers.push(token);
+      continue;
+    }
+    if (!HOTKEY_KEY.test(token)) {
+      return ['invalid_hotkey'];
+    }
+    keys += 1;
+  }
+  if (keys !== 1 || modifiers.length === 0) {
+    return ['invalid_hotkey'];
+  }
+  // Canonical order: each modifier's first occurrence position must follow
+  // the canonical order of the previous one.
+  for (let index = 1; index < modifiers.length; index += 1) {
+    const previous = MODIFIER_ORDER.indexOf(modifiers[index - 1] as (typeof MODIFIER_ORDER)[number]);
+    const current = MODIFIER_ORDER.indexOf(modifiers[index] as (typeof MODIFIER_ORDER)[number]);
+    if (current < previous) {
+      return ['invalid_hotkey'];
+    }
+  }
+  return [];
+}
+
+/**
+ * Focused-app identity grammar mirror (`AppIdentity::from_str`): bounded
+ * lowercase ASCII with `.`, `-`, `_`; no wildcards, no bad edges, no `..`.
+ *
+ * @returns error tokens; an empty array means the identity is acceptable.
+ */
+export function appIdentityErrors(raw: unknown): ValidationToken[] {
+  if (typeof raw !== 'string' || raw.length === 0) {
+    return ['invalid_app_identity'];
+  }
+  if (raw.length > LIMITS.maxAppIdentityBytes) {
+    return ['invalid_app_identity'];
+  }
+  if (!/^[a-z0-9._-]+$/.test(raw)) {
+    return ['invalid_app_identity'];
+  }
+  if (/^[.-]|[.-]$|\.\./.test(raw)) {
+    return ['invalid_app_identity'];
+  }
+  return [];
+}
+
+function switchRuleTriggerErrors(trigger: unknown): ValidationToken[] {
+  if (!isRecord(trigger)) {
+    return ['domain_rejected'];
+  }
+  if (trigger.kind === 'hotkey') {
+    return hotkeyComboErrors(trigger.combo);
+  }
+  if (trigger.kind === 'app_focus') {
+    return appIdentityErrors(trigger.app);
+  }
+  return ['domain_rejected'];
+}
+
+/**
  * Validates a profile document against the v1 invariants.
  */
 export function validateProfileDocument(document: unknown): ValidationToken[] {
@@ -256,6 +340,45 @@ export function validateProfileDocument(document: unknown): ValidationToken[] {
         errors.push('duplicate_deck_ref');
       }
       seen.add(id);
+    }
+  }
+
+  // Switch rules (issue #19): optional on legacy documents, validated
+  // fail-closed whenever present.
+  const rules = profile.switch_rules ?? [];
+  if (!Array.isArray(rules)) {
+    errors.push('domain_rejected');
+    return [...new Set(errors)];
+  }
+  if (rules.length > LIMITS.maxSwitchRulesPerProfile) {
+    errors.push('limit_exceeded');
+  }
+  const triggers = new Set<string>();
+  for (const rule of rules) {
+    if (!isRecord(rule)) {
+      errors.push('domain_rejected');
+      continue;
+    }
+    checkId(rule.id, 'switch_rule', errors);
+    if (rule.profile_id !== profile.id || rule.workspace_id !== profile.workspace_id) {
+      errors.push('foreign_switch_rule');
+    }
+    if (typeof rule.enabled !== 'boolean') {
+      errors.push('domain_rejected');
+    }
+    const triggerErrors = switchRuleTriggerErrors(rule.trigger);
+    errors.push(...triggerErrors);
+    if (triggerErrors.length === 0 && isRecord(rule.trigger)) {
+      // Duplicate-trigger detection mirrors the deterministic conflict
+      // resolution of SwitchBoard::from_profiles.
+      const key =
+        rule.trigger.kind === 'hotkey'
+          ? `hotkey:${String(rule.trigger.combo)}`
+          : `app_focus:${String(rule.trigger.app)}`;
+      if (triggers.has(key)) {
+        errors.push(`conflicting_switch_rule:${rule.trigger.kind}`);
+      }
+      triggers.add(key);
     }
   }
   return [...new Set(errors)];

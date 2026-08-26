@@ -10,7 +10,7 @@
 //!   the issue #15 pipeline; damaged stores go through the documented
 //!   recovery ladder; crash windows reconcile to `outcome_unknown`
 //!   ([`crate::recovery`]). The Engine composes over that durable store
-//!   with the real system clock ([`crate::clock`]) — the port realization
+//!   with the real system clock ([`crate::clock`]) â€” the port realization
 //!   the engine crate deferred to this composition root.
 //! - **System tray:** every visible state renders deterministically from
 //!   the typed model in [`crate::menu`]; autostart toggles ONLY through an
@@ -20,7 +20,7 @@
 //!
 //! Authority boundary: the WebView surface is the Studio editor (issue #17)
 //! plus the live deck surface (issue #18), exposing exactly six local
-//! commands — load/apply/undo/redo over the validated domain documents,
+//! commands â€” load/apply/undo/redo over the validated domain documents,
 //! autosaved through the #15 pipeline, and the read-only surface projection
 //! plus fail-closed invocation evaluation (`surface::surface_load` /
 //! `surface::surface_invoke`, which refuses at the binding gate before any
@@ -33,6 +33,8 @@
 
 mod autostart;
 mod clock;
+mod focus;
+mod hotkeys;
 mod menu;
 mod paths;
 mod recovery;
@@ -40,6 +42,7 @@ mod shutdown;
 mod single_instance;
 mod studio;
 mod surface;
+mod switching;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};
@@ -57,7 +60,7 @@ use crate::shutdown::{ShutdownFailure, ShutdownStep, ShutdownTask, execute_grace
 use crate::single_instance::{InstanceLock, InstanceLockError};
 
 /// Everything the shell owns across its lifetime; managed as Tauri state.
-struct ShellHandles {
+pub(crate) struct ShellHandles {
     health: Mutex<ShellHealth>,
     autostart: Mutex<Box<dyn AutostartBackend>>,
     /// Last refused autostart change (closed-vocabulary token); surfaced
@@ -67,13 +70,16 @@ struct ShellHandles {
     runtime: Mutex<Option<ActionRuntime>>,
     journal_store: Mutex<Option<SharedJournal>>,
     instance_lock: Mutex<Option<InstanceLock>>,
+    /// The serialized profile-switching engine (issue #19). Starts fully
+    /// denied; consent and rule sync flow through its typed API only.
+    pub(crate) switching: Mutex<switching::SwitchService>,
     shutdown_started: AtomicBool,
 }
 
 /// Locks through poisoning: SQLite transactions and these plain values
 /// cannot be corrupted by a panicked holder, so losing access would only
 /// hide the truth.
-fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+pub(crate) fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -83,8 +89,8 @@ impl ShellHandles {
     /// Exactly-once gate for the graceful-shutdown sequence: the winner
     /// flips the flag and runs the sequencer (its first task re-renders the
     /// tray into the shutting-down presentation); every loser observes the
-    /// flip and does nothing. All controlled exit paths — tray Quit and OS
-    /// session end alike — funnel through this single gate via
+    /// flip and does nothing. All controlled exit paths â€” tray Quit and OS
+    /// session end alike â€” funnel through this single gate via
     /// `RunEvent::ExitRequested`.
     fn begin_shutdown(&self) -> bool {
         self.shutdown_started
@@ -283,7 +289,7 @@ release_task!(
 /// Runs the fixed graceful-shutdown order at most once per process: an
 /// atomic compare-exchange gate decides a single winner before any task is
 /// built, so the tray's shutting-down presentation is guaranteed to render
-/// exactly once, ahead of teardown. A crash skips the sequencer entirely —
+/// exactly once, ahead of teardown. A crash skips the sequencer entirely â€”
 /// that window belongs to journal-backed restart recovery, not to this
 /// path.
 fn run_graceful_shutdown() {
@@ -332,7 +338,7 @@ const REFUSED_GUARD_UNAVAILABLE: &str = "guard-unavailable";
 const REFUSED_DATA_DIR_UNKNOWN: &str = "data-directory-unknown";
 
 /// Health strictly from durable startup facts. Precedence: pending review
-/// beats recovery-with-loss beats ready — a restored/quarantined store must
+/// beats recovery-with-loss beats ready â€” a restored/quarantined store must
 /// never present as plain "running", but review-required evidence is the
 /// most urgent truth when both apply.
 fn shell_health_from(report: &recovery::StartupReport) -> ShellHealth {
@@ -441,10 +447,17 @@ fn main() {
             studio::studio_undo,
             studio::studio_redo,
             surface::surface_load,
-            surface::surface_invoke
+            surface::surface_invoke,
+            switching::switch_state_load,
+            switching::switch_consent
         ])
         .setup(move |app| {
             let _ = APP.set(app.handle().clone());
+
+            // Studio session over the authored-document store; without a
+            // resolvable data dir it degrades to autosave-off honestly.
+            let studio_state = studio::StudioState::new(data_dir.as_deref());
+            app.manage(studio_state);
 
             app.manage(ShellHandles {
                 health: Mutex::new(health),
@@ -454,13 +467,31 @@ fn main() {
                 runtime: Mutex::new(runtime),
                 journal_store: Mutex::new(journal_store),
                 instance_lock: Mutex::new(instance_lock),
+                switching: Mutex::new(switching::SwitchService::new(
+                    hotkeys::platform_default_registrar(),
+                    focus::platform_default_focus_source(),
+                )),
                 shutdown_started: AtomicBool::new(false),
             });
 
-            // Studio session over the authored-document store; without a
-            // resolvable data dir it degrades to autosave-off honestly.
-            let studio_state = studio::StudioState::new(data_dir.as_deref());
-            app.manage(studio_state);
+            // Switching worker: re-syncs authored rules, drains OS hotkey
+            // deliveries, and observes focus under grant. Starts fully
+            // denied (no consent recorded); every tick exits early once
+            // graceful shutdown begins.
+            std::thread::Builder::new()
+                .name("openstream-switching".to_owned())
+                .spawn(|| {
+                    loop {
+                        std::thread::sleep(std::time::Duration::from_millis(
+                            switching::FOCUS_POLL_MS,
+                        ));
+                        let Some(app) = current_app() else {
+                            return;
+                        };
+                        switching::poll_tick(app);
+                    }
+                })
+                .ok();
 
             let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))
                 .expect("bundled tray icon decodes");
@@ -517,6 +548,10 @@ mod tests {
             runtime: Mutex::new(None),
             journal_store: Mutex::new(None),
             instance_lock: Mutex::new(None),
+            switching: Mutex::new(crate::switching::SwitchService::new(
+                crate::hotkeys::platform_default_registrar(),
+                crate::focus::platform_default_focus_source(),
+            )),
             shutdown_started: AtomicBool::new(false),
         }
     }

@@ -129,5 +129,6 @@ pub fn profile(deck_seeds: &[u128]) -> Profile {
         workspace_id: workspace_id(0),
         name: "synthetic profile".into(),
         deck_ids: deck_seeds.iter().map(|seed| deck_id(*seed)).collect(),
+        switch_rules: Vec::new(),
     }
 }

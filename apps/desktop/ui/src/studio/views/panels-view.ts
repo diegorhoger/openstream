@@ -9,9 +9,10 @@
  */
 
 import { createElement } from 'react';
-import type { ChangeEvent, ReactElement } from 'react';
+import type { ChangeEvent, MouseEvent, ReactElement } from 'react';
 import { formatMessage, type MessageCatalog } from '../../i18n/catalog.ts';
-import type { DeckDocument, WorkspaceSnapshot } from '../types.ts';
+import { appIdentityErrors, hotkeyComboErrors } from '../decode.ts';
+import type { DeckDocument, SwitchRule, WorkspaceSnapshot } from '../types.ts';
 
 export interface PagesRailCallbacks {
   onPageSelect(deckId: string, pageId: string): void;
@@ -32,6 +33,12 @@ export interface ProfilesPanelCallbacks {
   onProfileMoveDeck(profileId: string, deckId: string, toIndex: number): void;
   onProfileRemoveDeck(profileId: string, deckId: string): void;
   onProfileDelete(profileId: string): void;
+  /** Binds a new explicit switch trigger to the profile (issue #19). */
+  onRuleAdd(profileId: string, triggerKind: 'hotkey' | 'app_focus', triggerValue: string): void;
+  /** Removes one switch rule. */
+  onRuleRemove(profileId: string, ruleId: string): void;
+  /** Enables or disables one switch rule without deleting it. */
+  onRuleToggle(profileId: string, ruleId: string, enabled: boolean): void;
 }
 
 function heading(headingId: string, className: string, text: string): ReactElement {
@@ -250,10 +257,131 @@ export function renderFoldersPanel(
   );
 }
 
+/** Accessible text for one rule trigger (canonical wire form). */
+function triggerText(rule: SwitchRule): string {
+  return rule.trigger.kind === 'hotkey'
+    ? `hotkey:${rule.trigger.combo}`
+    : `app_focus:${rule.trigger.app}`;
+}
+
+/**
+ * Switch-rules editor for one selected profile (issue #19): lists every
+ * explicit trigger bound to this profile with enable/disable and remove
+ * controls, plus a fail-closed add form. Client validation mirrors the
+ * domain grammar; the Rust op re-validates authoritatively.
+ */
+function renderRuleEditor(
+  messages: MessageCatalog,
+  profileId: string,
+  rules: SwitchRule[],
+  callbacks: ProfilesPanelCallbacks,
+): ReactElement {
+  const kindId = `rule-kind-${profileId}`;
+  const valueId = `rule-value-${profileId}`;
+
+  const rows = rules.map((rule) => {
+    const trigger = triggerText(rule);
+    return createElement(
+      'li',
+      { key: rule.id, className: 'profile-rule-row' },
+      createElement(
+        'span',
+        { className: 'profile-rule-trigger' },
+        trigger,
+        rule.enabled
+          ? null
+          : createElement(
+              'span',
+              { className: 'badge-latched' },
+              messages['studio.profiles.rules.disabledBadge'],
+            ),
+      ),
+      createElement('button', {
+        type: 'button',
+        className: 'control-button',
+        onClick: () => callbacks.onRuleToggle(profileId, rule.id, !rule.enabled),
+      }, formatMessage(messages[rule.enabled ? 'studio.profiles.rules.disable' : 'studio.profiles.rules.enable'], { trigger })),
+      createElement('button', {
+        type: 'button',
+        className: 'icon-button icon-button-danger',
+        'aria-label': formatMessage(messages['studio.profiles.rules.remove'], { trigger }),
+        onClick: () => callbacks.onRuleRemove(profileId, rule.id),
+      }, '✕'),
+    );
+  });
+
+  const addClicked = (event: MouseEvent<HTMLButtonElement>): void => {
+    const group = event.currentTarget.parentElement;
+    if (group === null) {
+      return;
+    }
+    const kindSelect = group.querySelector<HTMLSelectElement>(`#${CSS.escape(kindId)}`);
+    const valueInput = group.querySelector<HTMLInputElement>(`#${CSS.escape(valueId)}`);
+    if (kindSelect === null || valueInput === null) {
+      return;
+    }
+    const kind = kindSelect.value === 'app_focus' ? ('app_focus' as const) : ('hotkey' as const);
+    const value = valueInput.value.trim();
+    // Client-side grammar mirror; the Rust op revalidates authoritatively.
+    const clientErrors = kind === 'hotkey' ? hotkeyComboErrors(value) : appIdentityErrors(value);
+    if (value.length === 0 || clientErrors.length > 0) {
+      valueInput.setAttribute('aria-invalid', 'true');
+      return;
+    }
+    valueInput.removeAttribute('aria-invalid');
+    callbacks.onRuleAdd(profileId, kind, value);
+    valueInput.value = '';
+  };
+
+  return createElement(
+    'div',
+    { className: 'profile-rules' },
+    createElement('h3', { className: 'panel-subtitle' }, messages['studio.profiles.rules.heading']),
+    rules.length === 0
+      ? createElement('p', { className: 'muted' }, messages['studio.profiles.rules.none'])
+      : createElement('ul', { className: 'profile-rule-list' }, ...rows),
+    createElement(
+      'div',
+      { role: 'group', 'aria-label': messages['studio.profiles.rules.addHeading'] },
+      createElement(
+        'select',
+        {
+          id: kindId,
+          className: 'folder-select',
+          'aria-label': messages['studio.profiles.rules.kind'],
+        },
+        createElement('option', { value: 'hotkey' }, messages['studio.profiles.rules.kind.hotkey']),
+        createElement(
+          'option',
+          { value: 'app_focus' },
+          messages['studio.profiles.rules.kind.app_focus'],
+        ),
+      ),
+      createElement('input', {
+        id: valueId,
+        type: 'text',
+        className: 'inspector-input',
+        placeholder: messages['studio.profiles.rules.value.hotkey'],
+      }),
+      createElement(
+        'button',
+        { type: 'button', className: 'control-button', onClick: addClicked },
+        messages['studio.profiles.rules.add'],
+      ),
+      createElement(
+        'p',
+        { className: 'field-hint' },
+        `${messages['studio.profiles.rules.value.hotkey']} · ${messages['studio.profiles.rules.value.app_focus']}`,
+      ),
+    ),
+  );
+}
+
 /**
  * Profiles panel: profile selection, the profile's ordered deck list with
  * up/down/remove buttons per row (keyboard alternative to drag reordering),
- * and a combobox to append any deck not yet referenced.
+ * a combobox to append any deck not yet referenced, and the issue #19
+ * switch-rule editor for the selected profile.
  */
 export function renderProfilesPanel(
   props: {
@@ -364,6 +492,12 @@ export function renderProfilesPanel(
                 className: 'control-button control-button-danger',
                 onClick: () => callbacks.onProfileDelete(profileId),
               }, messages['studio.profile.delete']),
+              renderRuleEditor(
+                messages,
+                profileId,
+                document.profile.switch_rules ?? [],
+                callbacks,
+              ),
             )
           : null,
       ),

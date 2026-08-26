@@ -1,4 +1,4 @@
-[package]
+﻿[package]
 name = "openstream-desktop"
 description = "OpenStream desktop composition root (Tauri 2). Deny-by-default shell; all authority remains in Rust crates."
 version.workspace = true
@@ -22,6 +22,13 @@ serde = { version = "=1.0.229", features = ["derive"] }
 # Already a transitive lockfile member via Tauri; pinned exactly per repo
 # policy. Safe wrapper only: this crate keeps `unsafe_code = "forbid"`.
 winreg = "=0.55.0"
+# Windows global-shortcut REGISTRATION backend (issue #19): RegisterHotKey-
+# class OS registration only â€” the crate never installs keyboard hooks.
+# Pinned exactly per repo policy.
+global-hotkey = "=0.8.0"
+# Windows focused-app identity source (issue #19): foreground-window process
+# image name only. Pinned exactly per repo policy.
+active-win-pos-rs = "=0.8.3"
 
 [dev-dependencies]
 tempfile = "=3.27.0"

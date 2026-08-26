@@ -1,5 +1,10 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import type { DragEvent, KeyboardEvent as ReactKeyboardEvent, ReactElement } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState, Fragment } from 'react';
+import {
+  createElement,
+  type DragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactElement,
+} from 'react';
 import {
   editorReducer,
   findControl,
@@ -40,6 +45,13 @@ import {
 } from './surface/bridge.ts';
 import { invokeOutcomeErrors, surfaceLoadErrors } from './surface/decode.ts';
 import type { InvokeOutcome } from './surface/types.ts';
+import {
+  switchingBridgeAvailable,
+  tauriSwitchingBridge,
+  type SwitchingBridge,
+} from './surface/switching-bridge.ts';
+import type { ConsentAction, SwitchSurfaceState } from './surface/switching-types.ts';
+import { renderSwitching } from './surface/switching-view.ts';
 
 /** Grid stride math shared with the canvas view (8 px spacing rhythm). */
 const CELL_GAP_PX = 8;
@@ -223,6 +235,46 @@ export function App(): ReactElement {
       cancelled = true;
     };
   }, [dispatchSurface]);
+
+  // ---- Profile switching (issue #19) ---------------------------------------
+  // The switching panel polls the typed engine state so OS-delivered hotkey
+  // switches and focus changes appear within one interval; consent actions
+  // reload immediately after the shell answers.
+  const [switchingState, setSwitchingState] = useState<SwitchSurfaceState | null>(null);
+  const switchingBridgeRef = useRef<SwitchingBridge>(tauriSwitchingBridge);
+  const refreshSwitching = useCallback((): void => {
+    if (!switchingBridgeAvailable()) {
+      return;
+    }
+    void switchingBridgeRef.current
+      .load()
+      .then((result) => {
+        setSwitchingState(result.state);
+      })
+      .catch(() => {
+        // Keep the last known state; the poll retries. No fake readiness.
+      });
+  }, []);
+  useEffect(() => {
+    refreshSwitching();
+    const timer = window.setInterval(refreshSwitching, 2000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [refreshSwitching]);
+  const onSwitchConsent = useCallback(
+    (action: ConsentAction): void => {
+      void switchingBridgeRef.current
+        .consent(action)
+        .then((result) => {
+          setSwitchingState(result.state);
+        })
+        .catch(() => {
+          refreshSwitching();
+        });
+    },
+    [refreshSwitching],
+  );
 
   // Release every pending hold timer when leaving the surface or unmounting.
   useEffect(() => {
@@ -564,6 +616,29 @@ export function App(): ReactElement {
     onProfileDelete: (profileId: string): void => {
       void sendOp({ type: 'delete_profile', profile_id: profileId });
     },
+    onRuleAdd: (
+      profileId: string,
+      triggerKind: 'hotkey' | 'app_focus',
+      triggerValue: string,
+    ): void => {
+      void sendOp({
+        type: 'add_switch_rule',
+        profile_id: profileId,
+        trigger_kind: triggerKind,
+        trigger_value: triggerValue,
+      });
+    },
+    onRuleRemove: (profileId: string, ruleId: string): void => {
+      void sendOp({ type: 'remove_switch_rule', profile_id: profileId, rule_id: ruleId });
+    },
+    onRuleToggle: (profileId: string, ruleId: string, enabled: boolean): void => {
+      void sendOp({
+        type: 'set_switch_rule_enabled',
+        profile_id: profileId,
+        rule_id: ruleId,
+        enabled,
+      });
+    },
 
     // Inspector
     onControlLabel: (controlId: string, label: string): void => {
@@ -654,7 +729,7 @@ export function App(): ReactElement {
     const armedControlIds = Object.entries(surfaceRuntime.keys)
       .filter(([, key]) => key.phase === 'armed')
       .map(([controlId]) => controlId);
-    liveContent = renderSurface(
+    const surfaceSection = renderSurface(
       {
         messages,
         snapshot: state.snapshot,
@@ -691,6 +766,19 @@ export function App(): ReactElement {
         },
         onSurfaceKeyDown,
       },
+    );
+    liveContent = createElement(
+      Fragment,
+      { key: 'live-composition' },
+      renderSwitching(
+        {
+          messages,
+          switching: switchingState,
+          snapshot: state.snapshot,
+        },
+        { onConsent: onSwitchConsent },
+      ),
+      surfaceSection,
     );
   }
 

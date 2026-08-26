@@ -35,6 +35,7 @@ pub mod limits;
 pub mod page;
 pub mod profile;
 pub mod secret;
+pub mod switching;
 pub mod version;
 
 /// Major version of the versioned domain model this crate implements,

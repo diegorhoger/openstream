@@ -116,6 +116,30 @@ pub enum DomainError {
         /// Structural reason code, never the rejected input.
         reason: &'static str,
     },
+    /// A hotkey combination string violated its closed grammar (issue #19).
+    /// The reason is structural only; the rejected text is never echoed.
+    InvalidHotkeyCombo {
+        /// Structural reason code (`empty`, `too_long`, `duplicate_modifier`,
+        /// `missing_key`, `multiple_keys`, `unknown_token`,
+        /// `missing_modifier`, `forbidden_character`).
+        reason: &'static str,
+    },
+    /// A focused-app identity token violated its grammar (issue #19).
+    /// Structural reason only; the rejected input is never echoed.
+    InvalidAppIdentity {
+        /// Structural reason code (`empty`, `too_long`, `uppercase_or_invalid`
+        /// , `bad_edges`, `double_dot`).
+        reason: &'static str,
+    },
+    /// Two switch rules bind the same trigger; the configuration is refused
+    /// deterministically instead of being resolved silently (issue #19).
+    ConflictingSwitchRule {
+        /// Which trigger class collided: `hotkey` or `app_focus`.
+        kind: &'static str,
+    },
+    /// A switch rule stored inside one profile targets a different profile
+    /// or workspace (issue #19). Rules live on their target profile only.
+    ForeignSwitchRule,
 }
 
 /// Structural reasons a folder path is invalid. Matchable without exposing
@@ -199,6 +223,18 @@ impl fmt::Display for DomainError {
             }
             Self::InvalidSecretValue { reason } => {
                 write!(f, "invalid secret value: {reason}")
+            }
+            Self::InvalidHotkeyCombo { reason } => {
+                write!(f, "invalid hotkey combination: {reason}")
+            }
+            Self::InvalidAppIdentity { reason } => {
+                write!(f, "invalid focused-app identity: {reason}")
+            }
+            Self::ConflictingSwitchRule { kind } => {
+                write!(f, "conflicting switch rule trigger: {kind} already bound")
+            }
+            Self::ForeignSwitchRule => {
+                write!(f, "switch rule targets a foreign profile or workspace")
             }
         }
     }

@@ -93,6 +93,51 @@ fn invalid_documents_never_validate_after_decode() {
     );
 }
 
+/// Builds the synthetic profile-with-rules document used by the golden
+/// conformance test and the regeneration tool.
+fn profile_document_with_rules() -> ProfileDocument {
+    use openstream_domain::ids::SwitchRuleId;
+    use openstream_domain::switching::{AppIdentity, HotkeyCombo, SwitchRule, SwitchTrigger};
+    use std::str::FromStr as _;
+
+    let owner = profile(&[2]);
+    let rules = vec![
+        SwitchRule {
+            id: SwitchRuleId::from_str(&common::uuid7_from(21)).unwrap(),
+            profile_id: owner.id,
+            workspace_id: owner.workspace_id,
+            trigger: SwitchTrigger::Hotkey {
+                combo: HotkeyCombo::from_str("shift+ctrl+f5").unwrap(),
+            },
+            enabled: true,
+        },
+        SwitchRule {
+            id: SwitchRuleId::from_str(&common::uuid7_from(22)).unwrap(),
+            profile_id: owner.id,
+            workspace_id: owner.workspace_id,
+            trigger: SwitchTrigger::AppFocus {
+                app: AppIdentity::from_str("obs64.exe").unwrap(),
+            },
+            enabled: false,
+        },
+    ];
+    let mut document = ProfileDocument::new(owner);
+    document.profile.switch_rules = rules;
+    document
+}
+
+/// Profile carrying explicit switch rules (issue #19): pins the
+/// deterministic wire form of triggers and canonical combo ordering.
+#[test]
+fn profile_document_with_switch_rules_matches_golden_fixture_exactly() {
+    let json = profile_document_with_rules().to_json_string().unwrap();
+    let path = "tests/fixtures/profile-document-switch-rules-v1.json";
+    assert_golden_round_trip(path, json);
+
+    let parsed = ProfileDocument::from_json_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    assert_eq!(parsed, profile_document_with_rules());
+}
+
 /// Regeneration tool for the checked-in fixtures. Serialization is
 /// deterministic, so a regenerated fixture that differs from the committed
 /// one means the contract drifted and the diff must be reviewed. Run with:
@@ -116,6 +161,11 @@ fn write_golden_fixtures() {
         ProfileDocument::new(profile(&[2, 3]))
             .to_json_string()
             .unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        "tests/fixtures/profile-document-switch-rules-v1.json",
+        profile_document_with_rules().to_json_string().unwrap(),
     )
     .unwrap();
 }

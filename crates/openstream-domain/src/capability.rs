@@ -97,6 +97,15 @@ pub enum Capability {
     },
     /// Post desktop notifications templated from the action graph.
     NotificationShow,
+    /// Register OS-global keyboard shortcuts for profile switching
+    /// (registration-based delivery only; issue #19, ADR-0006). The OS
+    /// delivers registered combinations; no keyboard hooks or keystroke
+    /// reading exist anywhere behind this authority.
+    OsHotkeyRegister,
+    /// Read ONLY which application identity currently holds keyboard focus,
+    /// for explicit focused-app profile matchers (issue #19, ADR-0006).
+    /// Window titles and content are never read.
+    OsFocusRead,
     /// INTERNAL ONLY (`secret.read:<secret_ref>`): resolves inside the
     /// integration broker during one approved typed operation. Never appears
     /// in any manifest schema and never grants to plugins, WebView commands,
@@ -173,6 +182,8 @@ impl Capability {
             Self::OscSend { .. } => "osc.send",
             Self::AudioControl { .. } => "audio.control",
             Self::NotificationShow => "notification.show",
+            Self::OsHotkeyRegister => "os.hotkey.register",
+            Self::OsFocusRead => "os.focus.read",
             Self::SecretRead { .. } => "secret.read",
         }
     }
@@ -378,6 +389,8 @@ fn parse(raw: &str) -> Result<Capability, DomainError> {
         "obs.control.stream" => no_qualifiers(qualifier_part, Capability::ObsControlStream),
         "os.media.emit" => no_qualifiers(qualifier_part, Capability::OsMediaEmit),
         "notification.show" => no_qualifiers(qualifier_part, Capability::NotificationShow),
+        "os.hotkey.register" => no_qualifiers(qualifier_part, Capability::OsHotkeyRegister),
+        "os.focus.read" => no_qualifiers(qualifier_part, Capability::OsFocusRead),
         "clipboard.read" => no_qualifiers(qualifier_part, Capability::ClipboardRead),
         "clipboard.write" => no_qualifiers(qualifier_part, Capability::ClipboardWrite),
         "os.keyboard.emit" => parse_keyboard_emit(qualifier_part),
@@ -551,6 +564,8 @@ mod tests {
             "obs.control.stream",
             "os.media.emit",
             "notification.show",
+            "os.hotkey.register",
+            "os.focus.read",
             "clipboard.read",
             "clipboard.write",
         ] {

@@ -24,6 +24,8 @@ Status: shipped in M1 (issue #16). Composes the merged Engine (#9, #14), adapter
 | Graceful shutdown sequencer | Shipped | Shipped | Shipped |
 | System tray | Shipped | Shipped | Shipped (needs appindicator at runtime) |
 | Opt-in autostart | **Shipped** — per-user registry value | **Unsupported** — no LaunchAgent is written by this build; tray reports unavailable | **Unsupported** — no XDG autostart entry is written by this build; tray reports unavailable |
+| Global hotkey registration (issue #19) | **Shipped** — `RegisterHotKey`-class registration via pinned wrapper | **Unsupported** — no registration backend in this build; typed visible state | **Unsupported** — no registration backend in this build; typed visible state |
+| Focused-app identity (issue #19) | **Shipped** — foreground process image name only | **Unsupported** — typed visible state, no observation of any kind | **Unsupported** — typed visible state, no observation of any kind |
 
 `Unsupported` means exactly that: the backend refuses with a typed error and user surfaces render "unavailable". There is no silent fallback that pretends to enable anything.
 
@@ -49,6 +51,15 @@ Nothing else is written: no telemetry, no caches, no hidden preference files. Th
 - No elevation, no service, no scheduled task, no arguments.
 - Enable/disable happen only from an explicit tray-menu action; disable is idempotent. The tray checkbox reflects read-back registry truth: ONLY a missing subkey/value reads as Disabled — access-denied or other registry I/O failures surface as an explicit query-failure state instead of masquerading as Disabled.
 - macOS/Linux: not implemented this milestone (see matrix).
+
+## Profile switching mechanisms (issue #19)
+
+Full behavioral contract: `docs/architecture/PROFILE_SWITCHING.md`; security decision: `docs/adr/0006-profile-switching-mechanisms.md`. Summary:
+
+- **No input capture.** Global hotkeys are `RegisterHotKey`-class REGISTRATIONS inside a pinned wrapper — the OS delivers presses for combinations OpenStream registered and nothing else is ever observed. Focused-app matching reads ONLY the foreground process image file name (lowercased identity token); titles, content, and keystrokes are never read anywhere.
+- Both mechanisms start DENIED each launch (consent ledger is in-memory this milestone) and require explicit first-use consent per mechanism from the switching panel; revocation unregisters shortcuts / stops observation in the same call.
+- A dedicated worker thread serializes every registration mutation; a second worker tick re-syncs authored rules, drains OS press deliveries, and applies focus changes through the deterministic engine (documented batch precedence: explicit hotkeys outrank focused-app automation; denials never rewind authorized switches).
+- Unsupported platforms, contested combinations, and unreadable focus surface as typed visible states in the Studio live view; nothing degrades silently.
 
 ## Single-instance mechanism
 
