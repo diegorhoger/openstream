@@ -123,7 +123,48 @@ export type MessageKey =
   | 'studio.error.invalid_id'
   | 'studio.error.not_found'
   | 'studio.error.deck_deleted'
-  | 'studio.error.unknown';
+  | 'studio.error.unknown'
+  | 'studio.toolbar.mode'
+  | 'studio.mode.edit'
+  | 'studio.mode.live'
+  | 'surface.heading'
+  | 'surface.engine.ready'
+  | 'surface.engine.unavailable'
+  | 'surface.empty'
+  | 'surface.pages.label'
+  | 'surface.pages.tab'
+  | 'surface.phase.pressed'
+  | 'surface.phase.armed'
+  | 'surface.phase.relayed'
+  | 'surface.phase.accepted'
+  | 'surface.phase.running'
+  | 'surface.phase.succeeded'
+  | 'surface.phase.failed'
+  | 'surface.phase.cancelled'
+  | 'surface.phase.expired'
+  | 'surface.phase.outcome_unknown'
+  | 'surface.phase.latched'
+  | 'surface.key.stateSink'
+  | 'surface.arming.group'
+  | 'surface.arming.title'
+  | 'surface.arming.confirm'
+  | 'surface.arming.cancel'
+  | 'surface.announce.pressed'
+  | 'surface.announce.armed'
+  | 'surface.announce.relayed'
+  | 'surface.announce.accepted'
+  | 'surface.announce.running'
+  | 'surface.announce.succeeded'
+  | 'surface.announce.failed'
+  | 'surface.announce.cancelled'
+  | 'surface.announce.expired'
+  | 'surface.announce.outcomeUnknown'
+  | 'surface.error.binding_absent'
+  | 'surface.error.control_disabled'
+  | 'surface.error.state_sink_no_interaction'
+  | 'surface.error.policy_mismatch'
+  | 'surface.error.unknown'
+  | 'surface.hint';
 
 export type MessageCatalog = Readonly<Record<MessageKey, string>>;
 
@@ -253,6 +294,56 @@ const EN_US: MessageCatalog = {
   'studio.error.not_found': 'The referenced item no longer exists.',
   'studio.error.deck_deleted': 'This deck has been deleted.',
   'studio.error.unknown': 'The change was rejected by validation.',
+
+  'studio.toolbar.mode': 'View mode',
+  'studio.mode.edit': 'Edit',
+  'studio.mode.live': 'Live',
+
+  'surface.heading': 'Live deck',
+  'surface.engine.ready': 'Local Engine ready.',
+  'surface.engine.unavailable':
+    'Local Engine unavailable. Keys stay inert until the shell bridge returns.',
+  'surface.empty': 'This page has no controls yet. Add them in Edit mode.',
+  'surface.pages.label': 'Pages of this deck',
+  'surface.pages.tab': 'Page {index}',
+  'surface.phase.pressed': 'Pressed',
+  'surface.phase.armed': 'Armed — confirmation required',
+  'surface.phase.relayed': 'Sent to Engine',
+  'surface.phase.accepted': 'Accepted by Engine',
+  'surface.phase.running': 'Running',
+  'surface.phase.succeeded': 'Executed',
+  'surface.phase.failed': 'Failed',
+  'surface.phase.cancelled': 'Cancelled',
+  'surface.phase.expired': 'Expired',
+  'surface.phase.outcome_unknown': 'Outcome unknown',
+  'surface.phase.latched': 'Latched on',
+  'surface.key.stateSink': 'Value display: shows a variable value; it takes no input.',
+  'surface.arming.group': 'Confirm destructive action',
+  'surface.arming.title':
+    '{name} is armed. This destructive action runs only after explicit confirmation.',
+  'surface.arming.confirm': 'Confirm {name}',
+  'surface.arming.cancel': 'Cancel {name}',
+  'surface.announce.pressed': '{name} pressed.',
+  'surface.announce.armed': '{name} armed. Confirmation required before it fires.',
+  'surface.announce.relayed': '{name} sent to the Engine.',
+  'surface.announce.accepted': '{name} accepted by the Engine.',
+  'surface.announce.running': '{name} running.',
+  'surface.announce.succeeded': '{name} executed successfully.',
+  'surface.announce.failed': '{name} failed ({token}).',
+  'surface.announce.cancelled': '{name} cancelled.',
+  'surface.announce.expired': '{name} expired before execution.',
+  'surface.announce.outcomeUnknown':
+    '{name} outcome unknown. The Engine could not confirm the result; nothing is assumed.',
+  'surface.error.binding_absent':
+    'No action is bound to this control yet, so nothing was sent. Bind actions in a later update.',
+  'surface.error.control_disabled': 'This control is disabled and stays inert.',
+  'surface.error.state_sink_no_interaction':
+    'Value displays show state; they take no input.',
+  'surface.error.policy_mismatch':
+    'This gesture does not match the control interaction policy ({event}). Nothing was sent.',
+  'surface.error.unknown': 'The request was refused before anything ran ({token}).',
+  'surface.hint':
+    'Space presses and holding Space holds (fires after {hold} ms, repeating every {repeat} ms). Enter taps. Escape cancels arming.',
 };
 
 const PT_BR: MessageCatalog = {
@@ -382,6 +473,57 @@ const PT_BR: MessageCatalog = {
   'studio.error.not_found': 'O item referenciado não existe mais.',
   'studio.error.deck_deleted': 'Este deck foi excluído.',
   'studio.error.unknown': 'A alteração foi rejeitada pela validação.',
+
+  'studio.toolbar.mode': 'Modo de exibição',
+  'studio.mode.edit': 'Editar',
+  'studio.mode.live': 'Ao vivo',
+
+  'surface.heading': 'Deck ao vivo',
+  'surface.engine.ready': 'Engine local pronto.',
+  'surface.engine.unavailable':
+    'Engine local indisponível. As teclas ficam inertes até a ponte do aplicativo voltar.',
+  'surface.empty': 'Esta página ainda não tem controles. Adicione-os no modo Editar.',
+  'surface.pages.label': 'Páginas deste deck',
+  'surface.pages.tab': 'Página {index}',
+  'surface.phase.pressed': 'Pressionado',
+  'surface.phase.armed': 'Armado — confirmação necessária',
+  'surface.phase.relayed': 'Enviado ao Engine',
+  'surface.phase.accepted': 'Aceito pelo Engine',
+  'surface.phase.running': 'Executando',
+  'surface.phase.succeeded': 'Executado',
+  'surface.phase.failed': 'Falhou',
+  'surface.phase.cancelled': 'Cancelado',
+  'surface.phase.expired': 'Expirado',
+  'surface.phase.outcome_unknown': 'Resultado desconhecido',
+  'surface.phase.latched': 'Travado ativado',
+  'surface.key.stateSink':
+    'Exibição de valor: mostra um valor de variável; não recebe entrada.',
+  'surface.arming.group': 'Confirmar ação destrutiva',
+  'surface.arming.title':
+    '{name} está armado. Esta ação destrutiva só executa após confirmação explícita.',
+  'surface.arming.confirm': 'Confirmar {name}',
+  'surface.arming.cancel': 'Cancelar {name}',
+  'surface.announce.pressed': '{name} pressionado.',
+  'surface.announce.armed': '{name} armado. Confirmação necessária antes de disparar.',
+  'surface.announce.relayed': '{name} enviado ao Engine.',
+  'surface.announce.accepted': '{name} aceito pelo Engine.',
+  'surface.announce.running': '{name} executando.',
+  'surface.announce.succeeded': '{name} executado com sucesso.',
+  'surface.announce.failed': '{name} falhou ({token}).',
+  'surface.announce.cancelled': '{name} cancelado.',
+  'surface.announce.expired': '{name} expirou antes da execução.',
+  'surface.announce.outcomeUnknown':
+    '{name} com resultado desconhecido. O Engine não pôde confirmar o resultado; nada é presumido.',
+  'surface.error.binding_absent':
+    'Nenhuma ação está vinculada a este controle ainda, então nada foi enviado. Vincule ações em uma atualização futura.',
+  'surface.error.control_disabled': 'Este controle está inativo e permanece inerte.',
+  'surface.error.state_sink_no_interaction':
+    'Exibições de valor mostram estado; não recebem entrada.',
+  'surface.error.policy_mismatch':
+    'Esse gesto não corresponde à política de interação do controle ({event}). Nada foi enviado.',
+  'surface.error.unknown': 'O pedido foi recusado antes de qualquer execução ({token}).',
+  'surface.hint':
+    'Espaço pressiona e manter Espaço segurado segura (dispara após {hold} ms, repetindo a cada {repeat} ms). Enter toca. Escape cancela o armar.',
 };
 
 export const CATALOG: Readonly<Record<LocaleId, MessageCatalog>> = {

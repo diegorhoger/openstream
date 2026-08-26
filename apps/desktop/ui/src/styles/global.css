@@ -452,3 +452,209 @@ body {
   margin-block: var(--space-8);
   font-size: var(--font-size-14);
 }
+
+/*
+ * Live deck surface (issue #18). Every execution phase pairs a TEXT badge
+ * and aria-hidden glyph with its color hook — status is never color alone.
+ * All colors reuse the versioned token palette; contrast pairs are proven
+ * by src/testing/contrast.test.ts.
+ */
+
+.page-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-block-end: var(--space-16);
+}
+
+.page-tab-current {
+  border-color: var(--signal);
+  color: var(--signal);
+  font-weight: 600;
+}
+
+.surface-grid {
+  margin-block-end: var(--space-16);
+}
+
+.surface-key {
+  transition:
+    border-color var(--motion-direct-manipulation-max) ease,
+    background-color var(--motion-direct-manipulation-max) ease;
+}
+
+.surface-key:disabled {
+  color: var(--text-muted);
+  cursor: default;
+  border-style: dotted;
+}
+
+.surface-key[data-phase='pressed'] {
+  background: var(--surface-2);
+  border-color: var(--text-muted);
+}
+
+.surface-key[data-phase='armed'] {
+  border-color: var(--live);
+}
+
+.surface-key[data-phase='relayed'] {
+  border-color: var(--text-muted);
+  border-style: dashed;
+}
+
+.surface-key[data-phase='accepted'] {
+  border-color: var(--info);
+}
+
+.surface-key[data-phase='running'] {
+  position: relative;
+  border-color: var(--info);
+}
+
+/* Restrained progress edge while running (never flashing). */
+.surface-key[data-phase='running']::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  block-size: 3px;
+  inline-size: 40%;
+  border-radius: var(--radius-control);
+  background: var(--info);
+  animation: surface-progress 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes surface-progress {
+  from {
+    inline-size: 20%;
+  }
+
+  to {
+    inline-size: 80%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surface-key[data-phase='running']::after {
+    animation: none;
+    inline-size: 100%;
+  }
+}
+
+.no-motion .surface-key[data-phase='running']::after {
+  animation: none;
+  inline-size: 100%;
+}
+
+.surface-key[data-phase='succeeded'] {
+  border-color: var(--signal);
+}
+
+.surface-key[data-phase='failed'],
+.surface-key[data-phase='cancelled'],
+.surface-key[data-phase='expired'],
+.surface-key[data-phase='outcome_unknown'] {
+  border-color: var(--warning);
+}
+
+.surface-key[data-phase='outcome_unknown'] {
+  border-style: dashed;
+}
+
+.surface-key[data-phase='failed'] {
+  border-color: var(--live);
+}
+
+.key-glyph {
+  margin-inline-end: var(--space-4);
+  font-family: var(--font-mono);
+}
+
+.key-glyph.phase-succeeded {
+  color: var(--signal);
+}
+
+.key-glyph.phase-failed {
+  color: var(--live);
+}
+
+.key-glyph.phase-armed {
+  color: var(--live);
+}
+
+.key-glyph.phase-cancelled,
+.key-glyph.phase-expired,
+.key-glyph.phase-outcome_unknown {
+  color: var(--warning);
+}
+
+.key-glyph.phase-relayed,
+.key-glyph.phase-accepted,
+.key-glyph.phase-running {
+  color: var(--info);
+}
+
+.badge-phase {
+  font-size: var(--font-size-12);
+  border: 1px solid currentcolor;
+  border-radius: var(--radius-control);
+  padding-block: 0;
+  padding-inline: var(--space-4);
+  background: var(--surface-1);
+  pointer-events: none;
+}
+
+.badge-latched {
+  color: var(--signal);
+}
+
+.phase-relayed {
+  color: var(--text-muted);
+}
+
+.phase-accepted {
+  color: var(--info);
+}
+
+.phase-running {
+  color: var(--info);
+}
+
+.phase-succeeded {
+  color: var(--signal);
+}
+
+.phase-failed {
+  color: var(--live);
+}
+
+.phase-armed {
+  color: var(--live);
+}
+
+.phase-cancelled,
+.phase-expired,
+.phase-outcome_unknown {
+  color: var(--warning);
+}
+
+.arming-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+  border: 2px solid var(--live);
+  border-radius: var(--radius-panel);
+  background: var(--surface-1);
+  padding: var(--space-12);
+  margin-block-start: var(--space-16);
+}
+
+.arming-strip p {
+  margin: 0;
+}
+
+.surface-alert {
+  margin-block-start: var(--space-8);
+}

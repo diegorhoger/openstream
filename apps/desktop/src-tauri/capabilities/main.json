@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Main window capability. Deny-by-default: grants zero plugin/core IPC permissions. The M1 shell adds NATIVE lifecycle behavior only (tray, single-instance guard, opt-in autostart, graceful shutdown, journal-backed crash recovery). Issue #17 adds the Studio editor command surface: exactly four application-defined commands (studio_load / studio_apply / studio_undo / studio_redo) over validated deck/profile documents, autosaved locally through the openstream-persistence SQLite pipeline. No plugin permissions are granted, no network surface exists, and no source-visibility/input-mute consent surface exists anywhere in this milestone.",
+  "description": "Main window capability. Deny-by-default: grants zero plugin/core IPC permissions. The M1 shell adds NATIVE lifecycle behavior only (tray, single-instance guard, opt-in autostart, graceful shutdown, journal-backed crash recovery). Issue #17 adds the Studio editor command surface: exactly four application-defined commands (studio_load / studio_apply / studio_undo / studio_redo) over validated deck/profile documents, autosaved locally through the openstream-persistence SQLite pipeline. Issue #18 adds the live deck surface: a read-only projection (surface_load) and fail-closed invocation evaluation (surface_invoke) that refuses at the binding gate BEFORE any admission or effect because no action-binding vocabulary exists yet in this milestone. No plugin permissions are granted, no network surface exists, and no source-visibility/input-mute consent surface exists anywhere in this milestone.",
   "windows": ["main"],
   "permissions": []
 }

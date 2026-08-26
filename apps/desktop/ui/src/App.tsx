@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react';
-import type { DragEvent, ReactElement } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import type { DragEvent, KeyboardEvent as ReactKeyboardEvent, ReactElement } from 'react';
 import {
   editorReducer,
   findControl,
@@ -18,6 +18,28 @@ import { handleCanvasKeys, handleGlobalKeys, isTypingTarget, type EditorCommand 
 import { validateDeckDocument, validateProfileDocument } from './studio/decode.ts';
 import type { ControlKind, InteractionPolicy, StudioOp } from './studio/types.ts';
 import { renderStudio } from './studio/views/studio-view.ts';
+import {
+  HOLD_THRESHOLD_MS,
+  REPEAT_INTERVAL_MS,
+  initialSurfaceRuntime,
+  surfaceReducer,
+  transition,
+  type ExecutionPhase,
+  type InteractionContext,
+  type MachineEvent,
+  type SurfaceAction,
+  type SurfaceRuntime,
+} from './surface/machine.ts';
+import { describeRefusal, phaseAnnouncement, renderSurface } from './surface/views/surface-view.ts';
+import { handleSurfaceKey } from './surface/keyboard.ts';
+import {
+  SURFACE_BRIDGE_UNAVAILABLE_TOKEN,
+  surfaceBridgeAvailable,
+  tauriSurfaceBridge,
+  type SurfaceBridge,
+} from './surface/bridge.ts';
+import { invokeOutcomeErrors, surfaceLoadErrors } from './surface/decode.ts';
+import type { InvokeOutcome } from './surface/types.ts';
 
 /** Grid stride math shared with the canvas view (8 px spacing rhythm). */
 const CELL_GAP_PX = 8;
@@ -35,7 +57,20 @@ function tokenOf(error: unknown): string {
   if (error instanceof Error && error.message === BRIDGE_UNAVAILABLE_TOKEN) {
     return BRIDGE_UNAVAILABLE_TOKEN;
   }
+  if (error instanceof Error && error.message === SURFACE_BRIDGE_UNAVAILABLE_TOKEN) {
+    return SURFACE_BRIDGE_UNAVAILABLE_TOKEN;
+  }
   return 'unknown';
+}
+
+/** Interaction context for one authored control on the live surface. */
+function surfaceContextOf(control: {
+  enabled: boolean;
+  policy: InteractionPolicy | null;
+}): InteractionContext & { destructive: boolean } {
+  // No binding vocabulary exists this milestone, so NO production control
+  // is destructive-class yet; the arming gate stays proven by tests.
+  return { enabled: control.enabled, policy: control.policy, destructive: false };
 }
 
 /**
@@ -52,6 +87,152 @@ export function App(): ReactElement {
   const stateRef = useRef(state);
   stateRef.current = state;
   const bridgeRef = useRef<StudioBridge>(tauriBridge);
+
+  // ---- Live surface (issue #18) -------------------------------------------
+  // The WebView owns interaction ONLY: every execution phase comes from the
+  // pure machine driven by explicit events, and every authoritative answer
+  // arrives through the Rust service. Nothing here can invent success.
+  const [surfaceRuntime, applySurfaceAction] = useReducer(
+    surfaceReducer,
+    initialSurfaceRuntime,
+  );
+  const surfaceBridgeRef = useRef<SurfaceBridge>(tauriSurfaceBridge);
+  const [announcementState, setAnnouncementState] = useState<{
+    text: string;
+    seq: number;
+  }>({ text: '', seq: 0 });
+  const [surfaceAlert, setSurfaceAlert] = useState('');
+  const holdTimersRef = useRef(new Map<string, { hold?: number; repeat?: number }>());
+  /** Synchronous mirror of surfaceRuntime for imperative reads/effects. */
+  const surfaceRef = useRef<SurfaceRuntime>(surfaceRuntime);
+
+  /** Single writer: advances the mirror with the same pure reducer. */
+  const dispatchSurface = useCallback((action: SurfaceAction): void => {
+    surfaceRef.current = surfaceReducer(surfaceRef.current, action);
+    applySurfaceAction(action);
+  }, []);
+
+  const clearHoldTimers = useCallback((controlId: string): void => {
+    const timers = holdTimersRef.current.get(controlId);
+    if (timers !== undefined) {
+      if (timers.hold !== undefined) {
+        clearTimeout(timers.hold);
+      }
+      if (timers.repeat !== undefined) {
+        clearInterval(timers.repeat);
+      }
+    }
+    holdTimersRef.current.delete(controlId);
+  }, []);
+
+  const failInvocation = useCallback(
+    (controlId: string, token: string): void => {
+      dispatchSurface({
+        kind: 'invoked',
+        outcome: { control_id: controlId, status: { kind: 'refused', token } },
+      });
+    },
+    [dispatchSurface],
+  );
+
+  const finishInvocation = useCallback(
+    (controlId: string, outcome: InvokeOutcome): void => {
+      const status =
+        outcome.status.kind === 'refused'
+          ? { kind: 'refused' as const, token: outcome.status.token }
+          : { kind: 'succeeded' as const };
+      dispatchSurface({ kind: 'invoked', outcome: { control_id: controlId, status } });
+    },
+    [dispatchSurface],
+  );
+
+  const runMachine = useCallback(
+    (events: readonly MachineEvent[]): void => {
+      for (const event of events) {
+        const found = findControl(stateRef.current.snapshot, event.controlId);
+        const context: InteractionContext & { destructive: boolean } = found
+          ? surfaceContextOf(found.control)
+          : { enabled: false, policy: null, destructive: false };
+        const result = transition(surfaceRef.current, context, event);
+        dispatchSurface({ kind: 'machine', ...event, context });
+        for (const effect of result.effects) {
+          if (effect.kind !== 'invoke') {
+            continue;
+          }
+          // Transport evidence first: relayed is a DISTINCT phase, never a
+          // result. The authoritative answer settles the cycle afterwards.
+          runMachine([{ type: 'relayed', controlId: effect.controlId }]);
+          void surfaceBridgeRef.current
+            .invoke(effect.controlId, effect.event)
+            .then((outcome) => {
+              if (invokeOutcomeErrors(outcome).length > 0) {
+                failInvocation(effect.controlId, 'invoke_invalid');
+                return;
+              }
+              finishInvocation(effect.controlId, outcome);
+            })
+            .catch((error: unknown) => {
+              failInvocation(effect.controlId, tokenOf(error));
+            });
+        }
+      }
+    },
+    [dispatchSurface, failInvocation, finishInvocation],
+  );
+
+  // Announce every real phase change once, regardless of which path caused
+  // it (machine event or authoritative invocation answer).
+  const announcedPhasesRef = useRef<Record<string, ExecutionPhase>>({});
+  useEffect(() => {
+    const messagesNow = messagesFor(stateRef.current.locale);
+    for (const [controlId, key] of Object.entries(surfaceRuntime.keys)) {
+      if (announcedPhasesRef.current[controlId] === key.phase) {
+        continue;
+      }
+      announcedPhasesRef.current[controlId] = key.phase;
+      const label = findControl(stateRef.current.snapshot, controlId)?.control.label ?? '';
+      const text = phaseAnnouncement(messagesNow, label, key.phase, key.failureToken);
+      if (text.length === 0) {
+        continue;
+      }
+      setAnnouncementState((previous) => ({ text, seq: previous.seq + 1 }));
+      if (key.phase === 'failed') {
+        setSurfaceAlert(describeRefusal(messagesNow, key.failureToken ?? 'unknown'));
+      }
+    }
+  }, [surfaceRuntime]);
+
+  // Surface availability truth: only the desktop shell can answer.
+  useEffect(() => {
+    if (!surfaceBridgeAvailable()) {
+      return;
+    }
+    let cancelled = false;
+    surfaceBridgeRef.current
+      .load()
+      .then((result) => {
+        if (cancelled || surfaceLoadErrors(result).length > 0) {
+          return; // stays honestly unavailable on any refusal
+        }
+        dispatchSurface({ kind: 'engine', available: result.engine_available });
+      })
+      .catch(() => {
+        // Stays honestly unavailable; no fake readiness anywhere.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatchSurface]);
+
+  // Release every pending hold timer when leaving the surface or unmounting.
+  useEffect(() => {
+    return () => {
+      for (const controlId of [...holdTimersRef.current.keys()]) {
+        clearHoldTimers(controlId);
+      }
+    };
+  }, [clearHoldTimers]);
+
 
   useEffect(() => {
     let cancelled = false;
@@ -181,6 +362,49 @@ export function App(): ReactElement {
 
   const messages = messagesFor(state.locale);
 
+  const onSurfaceKeyDown = useCallback(
+    (
+      controlId: string,
+      context: InteractionContext & { destructive: boolean },
+      event: ReactKeyboardEvent<HTMLButtonElement>,
+    ): void => {
+      const events = handleSurfaceKey(controlId, context, {
+        kind: event.type === 'keydown' ? 'keydown' : 'keyup',
+        key: event.key,
+      });
+      if (events === null) {
+        return;
+      }
+      event.preventDefault();
+      runMachine(events);
+    },
+    [runMachine],
+  );
+
+  const armHoldTimers = useCallback(
+    (controlId: string): void => {
+      const policy = findControl(stateRef.current.snapshot, controlId)?.control.policy;
+      if (policy !== 'hold' && policy !== 'repeat') {
+        return;
+      }
+      clearHoldTimers(controlId);
+      const timers: { hold?: number; repeat?: number } = {};
+      timers.hold = window.setTimeout(() => {
+        runMachine([
+          { type: policy === 'hold' ? 'hold-tick' : 'repeat-tick', controlId },
+        ]);
+        if (policy === 'repeat') {
+          timers.repeat = window.setInterval(() => {
+            runMachine([{ type: 'repeat-tick', controlId }]);
+          }, REPEAT_INTERVAL_MS);
+          holdTimersRef.current.set(controlId, { ...holdTimersRef.current.get(controlId), repeat: timers.repeat });
+        }
+      }, HOLD_THRESHOLD_MS);
+      holdTimersRef.current.set(controlId, { ...holdTimersRef.current.get(controlId), hold: timers.hold });
+    },
+    [clearHoldTimers, runMachine],
+  );
+
   const callbacks = {
     // Toolbar
     onUndo: () => void runCommand({ kind: 'undo' }),
@@ -188,6 +412,14 @@ export function App(): ReactElement {
     onZoom: (direction: 'in' | 'out' | 'reset') => dispatch({ type: 'zoom', direction }),
     onLocale: (locale: import('./i18n/catalog.ts').LocaleId) =>
       dispatch({ type: 'locale-changed', locale }),
+    onMode: (mode: 'edit' | 'live') => {
+      if (mode === 'edit') {
+        for (const controlId of [...holdTimersRef.current.keys()]) {
+          clearHoldTimers(controlId);
+        }
+      }
+      dispatch({ type: 'mode-changed', mode });
+    },
     onNewDeck: () => {
       void sendOp({
         type: 'create_deck',
@@ -416,5 +648,51 @@ export function App(): ReactElement {
     },
   };
 
-  return renderStudio(state, callbacks);
+  // ---- Live surface composition (issue #18) --------------------------------
+  let liveContent: ReactElement | null = null;
+  if (state.phase === 'ready' && state.mode === 'live') {
+    const armedControlIds = Object.entries(surfaceRuntime.keys)
+      .filter(([, key]) => key.phase === 'armed')
+      .map(([controlId]) => controlId);
+    liveContent = renderSurface(
+      {
+        messages,
+        snapshot: state.snapshot,
+        currentPageId: state.currentPageId,
+        engineAvailable: surfaceRuntime.engineAvailable,
+        runtimes: surfaceRuntime.keys,
+        armedControlIds,
+        announcement: announcementState.text,
+        alert: surfaceAlert,
+        announcementSeq: announcementState.seq,
+      },
+      {
+        onPageSelect: (pageId) => {
+          dispatch({ type: 'select', selection: { kind: 'page', pageId } });
+          dispatch({ type: 'open-page', pageId });
+        },
+        onPressBegin: (controlId) => {
+          runMachine([{ type: 'press-begin', controlId }]);
+          if (surfaceRef.current.keys[controlId]?.phase === 'pressed') {
+            armHoldTimers(controlId);
+          }
+        },
+        onPressEnd: (controlId) => {
+          clearHoldTimers(controlId);
+          runMachine([{ type: 'press-end', controlId }]);
+        },
+        onArmConfirm: (controlId) => {
+          clearHoldTimers(controlId);
+          runMachine([{ type: 'arm-confirm', controlId }]);
+        },
+        onArmCancel: (controlId) => {
+          clearHoldTimers(controlId);
+          runMachine([{ type: 'arm-cancel', controlId }]);
+        },
+        onSurfaceKeyDown,
+      },
+    );
+  }
+
+  return renderStudio(state, callbacks, liveContent);
 }

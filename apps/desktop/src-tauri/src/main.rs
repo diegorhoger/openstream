@@ -19,12 +19,15 @@
 //!   fixed, exactly-once step order from [`crate::shutdown`].
 //!
 //! Authority boundary: the WebView surface is the Studio editor (issue #17)
-//! and exposes exactly four local commands — load/apply/undo/redo over the
-//! validated domain documents, autosaved through the #15 pipeline. No OBS
-//! consent surface exists here or anywhere else in this milestone (PR #75
-//! gate): action *configuration* is not part of this milestone's op
-//! vocabulary at all. The capability file still grants zero plugin/core
-//! permissions.
+//! plus the live deck surface (issue #18), exposing exactly six local
+//! commands — load/apply/undo/redo over the validated domain documents,
+//! autosaved through the #15 pipeline, and the read-only surface projection
+//! plus fail-closed invocation evaluation (`surface::surface_load` /
+//! `surface::surface_invoke`, which refuses at the binding gate before any
+//! admission or effect). The capability file still grants zero plugin/core
+//! permissions. No OBS consent surface exists here or anywhere else in this
+//! milestone (PR #75 gate): action *configuration* is not part of any
+//! milestone op vocabulary at all.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -36,6 +39,7 @@ mod recovery;
 mod shutdown;
 mod single_instance;
 mod studio;
+mod surface;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};
@@ -435,7 +439,9 @@ fn main() {
             studio::studio_load,
             studio::studio_apply,
             studio::studio_undo,
-            studio::studio_redo
+            studio::studio_redo,
+            surface::surface_load,
+            surface::surface_invoke
         ])
         .setup(move |app| {
             let _ = APP.set(app.handle().clone());

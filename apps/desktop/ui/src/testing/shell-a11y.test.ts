@@ -579,11 +579,16 @@ describe('localization coverage over rendered states', () => {
   ]);
 
   for (const locale of LOCALES) {
-    it(`renders every ${locale} catalog string somewhere reachable`, () => {
+    it(`renders every ${locale} editor-reachable catalog string somewhere reachable`, () => {
       const catalog = CATALOG[locale];
       assert.ok(catalog);
       const missing: string[] = [];
       for (const [key, template] of Object.entries(catalog)) {
+        // Live-surface strings have their own executable contract
+        // (src/testing/surface-a11y.test.ts) over the same catalog.
+        if (key.startsWith('surface.')) {
+          continue;
+        }
         const reachable = renderedTexts.some(([, dom]) =>
           template.includes('{')
             ? templateToRegExp(template).test(dom)
