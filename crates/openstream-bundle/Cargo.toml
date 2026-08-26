@@ -1,0 +1,23 @@
+[package]
+name = "openstream-bundle"
+description = "Versioned .openstream import/export bundles with content hashes, fail-closed schema validation, hostile-input defenses, and an atomic-restore contract. Bundles carry documents only; secret material is structurally impossible inside them (TECHNICAL_SPEC §4, THREAT_MODEL TB6)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+openstream-domain = { path = "../openstream-domain" }
+flate2 = "=1.1.9"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+sha2 = "=0.10.9"
+
+[dev-dependencies]
+base64 = "=0.22.1"
+openstream-persistence = { path = "../openstream-persistence" }
+proptest = "=1.11.0"
+tempfile = "=3.27.0"
