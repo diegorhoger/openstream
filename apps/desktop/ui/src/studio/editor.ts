@@ -458,6 +458,18 @@ export function describeOpError(token: string, locale: LocaleId): string {
   if (token.startsWith('autosave_')) {
     return formatMessage(messages['studio.save.unavailable'], { token });
   }
+  if (token.startsWith('invalid_hotkey:')) {
+    return prefix + messages['studio.error.invalid_hotkey'];
+  }
+  if (token.startsWith('invalid_app_identity:')) {
+    return prefix + messages['studio.error.invalid_app_identity'];
+  }
+  if (token.startsWith('conflicting_switch_rule:')) {
+    return prefix + messages['studio.error.conflicting_switch_rule'];
+  }
+  if (token === 'foreign_switch_rule') {
+    return prefix + messages['studio.error.conflicting_switch_rule'];
+  }
   const directKeys = [
     'limit_exceeded',
     'ordinal_conflict',

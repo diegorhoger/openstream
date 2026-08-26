@@ -123,6 +123,9 @@ export type MessageKey =
   | 'studio.error.invalid_id'
   | 'studio.error.not_found'
   | 'studio.error.deck_deleted'
+  | 'studio.error.invalid_hotkey'
+  | 'studio.error.invalid_app_identity'
+  | 'studio.error.conflicting_switch_rule'
   | 'studio.error.unknown'
   | 'studio.toolbar.mode'
   | 'studio.mode.edit'
@@ -164,6 +167,36 @@ export type MessageKey =
   | 'surface.error.state_sink_no_interaction'
   | 'surface.error.policy_mismatch'
   | 'surface.error.unknown'
+  | 'studio.profiles.rules.heading'
+  | 'studio.profiles.rules.none'
+  | 'studio.profiles.rules.addHeading'
+  | 'studio.profiles.rules.add'
+  | 'studio.profiles.rules.kind'
+  | 'studio.profiles.rules.kind.hotkey'
+  | 'studio.profiles.rules.kind.app_focus'
+  | 'studio.profiles.rules.value.hotkey'
+  | 'studio.profiles.rules.value.app_focus'
+  | 'studio.profiles.rules.remove'
+  | 'studio.profiles.rules.enable'
+  | 'studio.profiles.rules.disable'
+  | 'studio.profiles.rules.disabledBadge'
+  | 'surface.switching.heading'
+  | 'surface.switching.active'
+  | 'surface.switching.inactive'
+  | 'surface.switching.mechanisms.label'
+  | 'surface.switching.hotkey.name'
+  | 'surface.switching.appFocus.name'
+  | 'surface.switching.granted'
+  | 'surface.switching.notGranted'
+  | 'surface.switching.unsupported'
+  | 'surface.switching.grant'
+  | 'surface.switching.revoke'
+  | 'surface.switching.boardConflict'
+  | 'surface.switching.issue.registerConflict'
+  | 'surface.switching.issue.registerRefused'
+  | 'surface.switching.issue.unregisterRefused'
+  | 'surface.switching.issue.focusUnreadable'
+  | 'surface.switching.issue.unsupported'
   | 'surface.hint';
 
 export type MessageCatalog = Readonly<Record<MessageKey, string>>;
@@ -293,6 +326,12 @@ const EN_US: MessageCatalog = {
   'studio.error.invalid_id': 'An identifier did not match the expected format.',
   'studio.error.not_found': 'The referenced item no longer exists.',
   'studio.error.deck_deleted': 'This deck has been deleted.',
+  'studio.error.invalid_hotkey':
+    'Use one shortcut key with at least one modifier, like ctrl+shift+f5 (keys: a-z, 0-9, f1-f24).',
+  'studio.error.invalid_app_identity':
+    'App identities are lowercase file names like obs64.exe (letters, digits, dots, dashes).',
+  'studio.error.conflicting_switch_rule':
+    'Another profile already binds this exact trigger. Pick a different combination or app.',
   'studio.error.unknown': 'The change was rejected by validation.',
 
   'studio.toolbar.mode': 'View mode',
@@ -342,6 +381,39 @@ const EN_US: MessageCatalog = {
   'surface.error.policy_mismatch':
     'This gesture does not match the control interaction policy ({event}). Nothing was sent.',
   'surface.error.unknown': 'The request was refused before anything ran ({token}).',
+  'studio.profiles.rules.heading': 'Switch rules',
+  'studio.profiles.rules.none':
+    'No switch rules yet. Add a shortcut or a focused-app trigger to activate this profile automatically.',
+  'studio.profiles.rules.addHeading': 'Add switch rule',
+  'studio.profiles.rules.add': 'Add rule',
+  'studio.profiles.rules.kind': 'Trigger kind',
+  'studio.profiles.rules.kind.hotkey': 'Global shortcut',
+  'studio.profiles.rules.kind.app_focus': 'When an app has focus',
+  'studio.profiles.rules.value.hotkey': 'Combination (e.g. ctrl+shift+f5)',
+  'studio.profiles.rules.value.app_focus': 'App identity (e.g. obs64.exe)',
+  'studio.profiles.rules.remove': 'Remove rule {trigger}',
+  'studio.profiles.rules.enable': 'Enable rule {trigger}',
+  'studio.profiles.rules.disable': 'Disable rule {trigger}',
+  'studio.profiles.rules.disabledBadge': 'Disabled',
+  'surface.switching.heading': 'Profile switching',
+  'surface.switching.active': 'Active profile: {name}',
+  'surface.switching.inactive': 'No profile is active. Switching happens only through your rules.',
+  'surface.switching.mechanisms.label': 'Switching mechanisms',
+  'surface.switching.hotkey.name': 'Global shortcuts',
+  'surface.switching.appFocus.name': 'Focused-app matching',
+  'surface.switching.granted': 'Allowed. Rules of this kind are live.',
+  'surface.switching.notGranted': 'Not allowed. Nothing switches until you allow it.',
+  'surface.switching.unsupported': 'Unavailable on this platform.',
+  'surface.switching.grant': 'Allow {mechanism}',
+  'surface.switching.revoke': 'Revoke {mechanism}',
+  'surface.switching.boardConflict':
+    'Two rules claim the same trigger, so automatic switching is paused. Fix the conflict in the editor.',
+  'surface.switching.issue.registerConflict':
+    '{combo} is already registered by another application.',
+  'surface.switching.issue.registerRefused': 'The system refused registering {combo}.',
+  'surface.switching.issue.unregisterRefused': 'The system refused removing {combo}.',
+  'surface.switching.issue.focusUnreadable': 'The focused app could not be read just now.',
+  'surface.switching.issue.unsupported': 'No backend for this mechanism on {os}.',
   'surface.hint':
     'Space presses and holding Space holds (fires after {hold} ms, repeating every {repeat} ms). Enter taps. Escape cancels arming.',
 };
@@ -472,6 +544,12 @@ const PT_BR: MessageCatalog = {
   'studio.error.invalid_id': 'Um identificador não correspondeu ao formato esperado.',
   'studio.error.not_found': 'O item referenciado não existe mais.',
   'studio.error.deck_deleted': 'Este deck foi excluído.',
+  'studio.error.invalid_hotkey':
+    'Use uma tecla com pelo menos um modificador, como ctrl+shift+f5 (teclas: a-z, 0-9, f1-f24).',
+  'studio.error.invalid_app_identity':
+    'Identidades de aplicativo são nomes de arquivo em minúsculas como obs64.exe (letras, dígitos, pontos, traços).',
+  'studio.error.conflicting_switch_rule':
+    'Outro perfil já usa exatamente este gatilho. Escolha outra combinação ou aplicativo.',
   'studio.error.unknown': 'A alteração foi rejeitada pela validação.',
 
   'studio.toolbar.mode': 'Modo de exibição',
@@ -522,6 +600,40 @@ const PT_BR: MessageCatalog = {
   'surface.error.policy_mismatch':
     'Esse gesto não corresponde à política de interação do controle ({event}). Nada foi enviado.',
   'surface.error.unknown': 'O pedido foi recusado antes de qualquer execução ({token}).',
+  'studio.profiles.rules.heading': 'Regras de troca',
+  'studio.profiles.rules.none':
+    'Nenhuma regra ainda. Adicione um atalho ou um gatilho de aplicativo para ativar este perfil automaticamente.',
+  'studio.profiles.rules.addHeading': 'Adicionar regra de troca',
+  'studio.profiles.rules.add': 'Adicionar regra',
+  'studio.profiles.rules.kind': 'Tipo de gatilho',
+  'studio.profiles.rules.kind.hotkey': 'Atalho global',
+  'studio.profiles.rules.kind.app_focus': 'Quando um app tem foco',
+  'studio.profiles.rules.value.hotkey': 'Combinação (ex.: ctrl+shift+f5)',
+  'studio.profiles.rules.value.app_focus': 'Identidade do app (ex.: obs64.exe)',
+  'studio.profiles.rules.remove': 'Remover regra {trigger}',
+  'studio.profiles.rules.enable': 'Ativar regra {trigger}',
+  'studio.profiles.rules.disable': 'Desativar regra {trigger}',
+  'studio.profiles.rules.disabledBadge': 'Inativa',
+  'surface.switching.heading': 'Troca de perfis',
+  'surface.switching.active': 'Perfil ativo: {name}',
+  'surface.switching.inactive':
+    'Nenhum perfil ativo. A troca acontece apenas pelas suas regras.',
+  'surface.switching.mechanisms.label': 'Mecanismos de troca',
+  'surface.switching.hotkey.name': 'Atalhos globais',
+  'surface.switching.appFocus.name': 'Detecção de app em foco',
+  'surface.switching.granted': 'Permitido. Regras deste tipo estão ativas.',
+  'surface.switching.notGranted': 'Não permitido. Nada troca até você permitir.',
+  'surface.switching.unsupported': 'Indisponível nesta plataforma.',
+  'surface.switching.grant': 'Permitir {mechanism}',
+  'surface.switching.revoke': 'Revogar {mechanism}',
+  'surface.switching.boardConflict':
+    'Duas regras usam o mesmo gatilho, então a troca automática está pausada. Corrija o conflito no editor.',
+  'surface.switching.issue.registerConflict':
+    '{combo} já está registrada por outro aplicativo.',
+  'surface.switching.issue.registerRefused': 'O sistema recusou registrar {combo}.',
+  'surface.switching.issue.unregisterRefused': 'O sistema recusou remover {combo}.',
+  'surface.switching.issue.focusUnreadable': 'Não foi possível ler o app em foco agora.',
+  'surface.switching.issue.unsupported': 'Sem suporte para este mecanismo em {os}.',
   'surface.hint':
     'Espaço pressiona e manter Espaço segurado segura (dispara após {hold} ms, repetindo a cada {repeat} ms). Enter toca. Escape cancela o armar.',
 };

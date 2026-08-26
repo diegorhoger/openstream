@@ -455,6 +455,16 @@ impl StudioError {
                     "zero_extent".to_owned()
                 }
                 DomainError::RevisionOverflow => "revision_overflow".to_owned(),
+                DomainError::InvalidHotkeyCombo { reason } => {
+                    format!("invalid_hotkey:{reason}")
+                }
+                DomainError::InvalidAppIdentity { reason } => {
+                    format!("invalid_app_identity:{reason}")
+                }
+                DomainError::ConflictingSwitchRule { kind } => {
+                    format!("conflicting_switch_rule:{kind}")
+                }
+                DomainError::ForeignSwitchRule => "foreign_switch_rule".to_owned(),
                 _ => "domain_rejected".to_owned(),
             },
         }

@@ -42,6 +42,9 @@ const ID = {
   controlCam: '018f6a1c-7b21-7003-9f31-00000000c002',
   controlSink: '018f6a1c-7b21-7003-9f31-00000000c003',
   profileMain: '018f6a1c-7b21-7004-9f31-000000000p01'.replace('p0', '00'),
+  profileEmpty: '018f6a1c-7b21-7004-9f31-000000000p02'.replace('p0', '00'),
+  ruleHotkey: '018f6a1c-7b21-7005-9f31-00000000r001'.replace('r0', '01'),
+  ruleFocus: '018f6a1c-7b21-7005-9f31-00000000r002'.replace('r0', '02'),
 };
 
 function control(id: string, kind: ControlKind, overrides: Partial<import('../studio/types.ts').Control> = {}): import('../studio/types.ts').Control {
@@ -128,6 +131,32 @@ function snapshotFixture(): WorkspaceSnapshot {
           workspace_id: '018f6a1c-7b21-7000-9f31-000000000000',
           name: 'Streaming',
           deck_ids: [ID.deckA, ID.deckB],
+          switch_rules: [
+            {
+              id: ID.ruleHotkey,
+              profile_id: ID.profileMain,
+              workspace_id: '018f6a1c-7b21-7000-9f31-000000000000',
+              trigger: { kind: 'hotkey', combo: 'ctrl+shift+f5' },
+              enabled: true,
+            },
+            {
+              id: ID.ruleFocus,
+              profile_id: ID.profileMain,
+              workspace_id: '018f6a1c-7b21-7000-9f31-000000000000',
+              trigger: { kind: 'app_focus', app: 'obs64.exe' },
+              enabled: false,
+            },
+          ],
+        },
+      },
+      {
+        schema_version: { major: 1, minor: 0 },
+        profile: {
+          id: ID.profileEmpty,
+          workspace_id: '018f6a1c-7b21-7000-9f31-000000000000',
+          name: 'Backup profile',
+          deck_ids: [],
+          switch_rules: [],
         },
       },
     ],
@@ -540,6 +569,10 @@ describe('localization coverage over rendered states', () => {
       'invalid_folder',
       'invalid_id',
       'deck_deleted',
+      'invalid_hotkey:unknown_token',
+      'invalid_app_identity:bad_edges',
+      'conflicting_switch_rule:hotkey',
+      'foreign_switch_rule',
       'unknown',
     ];
     for (const token of errorTokens) {
@@ -548,6 +581,23 @@ describe('localization coverage over rendered states', () => {
         editorReducer(selected, { type: 'op-rejected', token }),
       ]);
     }
+
+    // Issue #19: a selected profile with switch rules renders the rule
+    // editor rows; a rule-less profile renders its empty-state sentence.
+    states.push([
+      'profile-selected-with-rules',
+      editorReducer(ready, {
+        type: 'select',
+        selection: { kind: 'profile', profileId: ID.profileMain },
+      }),
+    ]);
+    states.push([
+      'profile-selected-without-rules',
+      editorReducer(ready, {
+        type: 'select',
+        selection: { kind: 'profile', profileId: ID.profileEmpty },
+      }),
+    ]);
 
     // Announcement variants: each announce.* sentence is reachable through
     // the polite live region during its own interaction.
