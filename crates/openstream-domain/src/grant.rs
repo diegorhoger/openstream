@@ -194,6 +194,8 @@ pub const fn required_consent(capability: &Capability) -> &'static [ConsentKind]
     match capability {
         ObsRead
         | OsMediaEmit
+        | OsHotkeyRegister
+        | OsFocusRead
         | ClipboardRead
         | ClipboardWrite
         | NotificationShow

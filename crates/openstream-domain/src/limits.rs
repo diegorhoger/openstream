@@ -56,6 +56,17 @@ pub const MAX_SECRET_REF_BYTES: usize = 128;
 /// values reject fail closed instead of silently succeeding per platform.
 pub const MAX_SECRET_VALUE_BYTES: usize = 2560;
 
+/// Maximum number of switch rules carried by one profile (issue #19).
+pub const MAX_SWITCH_RULES_PER_PROFILE: usize = 32;
+
+/// Maximum UTF-8 byte length of one focused-app identity token
+/// ([`crate::switching::AppIdentity`], issue #19).
+pub const MAX_APP_IDENTITY_BYTES: usize = 64;
+
+/// Maximum number of tokens inside one serialized hotkey combination
+/// (modifiers plus key; issue #19). Four modifiers + one key.
+pub const MAX_HOTKEY_TOKENS: usize = 5;
+
 /// Validates a user-text field (title, profile name, control label): not
 /// empty after trimming, at most [`MAX_TEXT_BYTES`] UTF-8 bytes. Returns the
 /// typed error naming only the structural field, never the content.

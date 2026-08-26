@@ -32,10 +32,11 @@ use openstream_domain::deck::Deck;
 use openstream_domain::document::{DeckDocument, ProfileDocument};
 use openstream_domain::error::DomainError;
 use openstream_domain::folder::FolderPath;
-use openstream_domain::ids::{ControlId, DeckId, PageId, ProfileId, WorkspaceId};
+use openstream_domain::ids::{ControlId, DeckId, PageId, ProfileId, SwitchRuleId, WorkspaceId};
 use openstream_domain::limits::check_text;
 use openstream_domain::page::{GridDimensions, Page};
 use openstream_domain::profile::Profile;
+use openstream_domain::switching::{SwitchBoard, SwitchRule};
 use openstream_persistence::sqlite::{DocumentKind, StoredDocument, WorkspaceStore};
 use serde::{Deserialize, Serialize};
 
@@ -221,12 +222,44 @@ pub enum StudioOp {
     },
     /// Move a deck reference within the profile's ordered list.
     ProfileMoveDeck {
-        /// Target profile id.
+        /// Owning profile id.
         profile_id: String,
         /// Deck id being moved.
         deck_id: String,
         /// Zero-based destination index.
         to_index: u32,
+    },
+    /// Bind an explicit switch trigger to a profile (issue #19): when the
+    /// trigger fires, this profile becomes the active one. Triggers are
+    /// parsed fail-closed against the domain grammars, and the whole
+    /// workspace must stay free of duplicate triggers (deterministic
+    /// conflict rejection) or the op refuses.
+    AddSwitchRule {
+        /// Target profile id (the profile that becomes active).
+        profile_id: String,
+        /// Trigger class: `hotkey` or `app_focus` (closed vocabulary).
+        trigger_kind: String,
+        /// Canonical combination (`ctrl+shift+f5`) or app identity
+        /// (`obs64.exe`) per the chosen class.
+        trigger_value: String,
+    },
+    /// Remove one switch rule from a profile.
+    RemoveSwitchRule {
+        /// Owning profile id.
+        profile_id: String,
+        /// Rule id to remove.
+        rule_id: String,
+    },
+    /// Enable or disable an existing switch rule without deleting it
+    /// (disabled rules stay stored but inert while still reserving their
+    /// trigger).
+    SetSwitchRuleEnabled {
+        /// Owning profile id.
+        profile_id: String,
+        /// Rule id to change.
+        rule_id: String,
+        /// New enabled flag.
+        enabled: bool,
     },
 }
 
@@ -887,6 +920,7 @@ pub fn apply_op(
                     workspace_id,
                     name: name.clone(),
                     deck_ids: Vec::new(),
+                    switch_rules: Vec::new(),
                 }),
             );
         }
@@ -950,9 +984,97 @@ pub fn apply_op(
                 Ok::<(), StudioError>(())
             })?;
         }
+        StudioOp::AddSwitchRule {
+            profile_id,
+            trigger_kind,
+            trigger_value,
+        } => {
+            let profile_id: ProfileId = parse(profile_id, "profile")?;
+            let trigger = parse_switch_trigger(trigger_kind, trigger_value)?;
+            let rule = SwitchRule {
+                id: SwitchRuleId::generate(),
+                profile_id,
+                workspace_id,
+                trigger,
+                enabled: true,
+            };
+            mutate_profile(&mut next.profiles, profile_id, move |profile| {
+                profile.switch_rules.push(rule);
+                profile.validate()?;
+                Ok::<(), StudioError>(())
+            })?;
+            // Deterministic conflict resolution: duplicate triggers across
+            // the whole workspace refuse the mutating op.
+            validate_switch_board(&next.profiles)?;
+        }
+        StudioOp::RemoveSwitchRule {
+            profile_id,
+            rule_id,
+        } => {
+            let profile_id: ProfileId = parse(profile_id, "profile")?;
+            let rule_ref: SwitchRuleId = parse(rule_id, "switch_rule")?;
+            mutate_profile(&mut next.profiles, profile_id, move |profile| {
+                let before = profile.switch_rules.len();
+                profile.switch_rules.retain(|rule| rule.id != rule_ref);
+                if profile.switch_rules.len() == before {
+                    return Err(StudioError::NotFound { entity: "rule" });
+                }
+                profile.validate()?;
+                Ok::<(), StudioError>(())
+            })?;
+        }
+        StudioOp::SetSwitchRuleEnabled {
+            profile_id,
+            rule_id,
+            enabled,
+        } => {
+            let profile_id: ProfileId = parse(profile_id, "profile")?;
+            let rule_ref: SwitchRuleId = parse(rule_id, "switch_rule")?;
+            mutate_profile(&mut next.profiles, profile_id, move |profile| {
+                let rule = profile
+                    .switch_rules
+                    .iter_mut()
+                    .find(|rule| rule.id == rule_ref)
+                    .ok_or(StudioError::NotFound { entity: "rule" })?;
+                rule.enabled = *enabled;
+                profile.validate()?;
+                Ok::<(), StudioError>(())
+            })?;
+        }
     }
 
     Ok(next)
+}
+
+/// Parses a switch-trigger authoring input fail-closed against its closed
+/// vocabulary (`hotkey` combinations / `app_focus` identities).
+fn parse_switch_trigger(
+    kind: &str,
+    value: &str,
+) -> Result<openstream_domain::switching::SwitchTrigger, StudioError> {
+    use openstream_domain::switching::{AppIdentity, HotkeyCombo, SwitchTrigger};
+    use std::str::FromStr as _;
+    match kind {
+        "hotkey" => {
+            let combo = HotkeyCombo::from_str(value).map_err(StudioError::Domain)?;
+            Ok(SwitchTrigger::Hotkey { combo })
+        }
+        "app_focus" => {
+            let app = AppIdentity::from_str(value).map_err(StudioError::Domain)?;
+            Ok(SwitchTrigger::AppFocus { app })
+        }
+        _ => Err(StudioError::Domain(DomainError::InvalidCapability {
+            reason: "unknown switch trigger kind",
+        })),
+    }
+}
+
+/// Cross-profile deterministic conflict gate: the whole workspace's rules
+/// must form a valid board (no duplicate triggers) or the mutation refuses.
+fn validate_switch_board(profiles: &[ProfileDocument]) -> Result<(), StudioError> {
+    SwitchBoard::from_profiles(profiles.iter().map(|document| &document.profile))
+        .map(|_| ())
+        .map_err(StudioError::Domain)
 }
 
 /// Stateful editor session: authoritative state, undo/redo stacks, and the
