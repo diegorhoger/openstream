@@ -81,4 +81,21 @@ fi
 step "artifacts: build Rust workspace binary (debug)"
 cargo build --workspace
 
-printf '\nLocal parity complete. CI equivalents live in .github/workflows/quality.yml.\n'
+step "packaging: verify installer outputs (local bundle check)"
+if [ -d "target/release/bundle" ]; then
+  bash tests/packaging/test-installer-output.sh target/release/bundle
+else
+  echo "SKIPPED locally: no bundle directory (run 'cargo tauri build' first)"
+fi
+
+step "packaging: signing verification (local)"
+if [ -d "target/release/bundle" ]; then
+  bash tests/packaging/test-signing-verification.sh target/release/bundle
+else
+  echo "SKIPPED locally: no bundle directory (run 'cargo tauri build' first)"
+fi
+
+step "packaging: uninstall cleanup test"
+bash tests/packaging/test-uninstall-cleanup.sh
+
+printf '\nLocal parity complete. CI equivalents live in .github/workflows/quality.yml and .github/workflows/package.yml.\n'
