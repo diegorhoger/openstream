@@ -22,11 +22,17 @@ use std::fmt;
 use openstream_domain::switching::HotkeyCombo;
 
 /// Which registration operation failed; closed vocabulary for surfacing.
+///
+/// Constructed only by the Windows worker path and test doubles;
+/// reachability is therefore platform-conditional, hence the targeted
+/// allowances (never a blanket lint weakening).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HotkeyOperation {
     /// Registering a combination with the OS.
+    #[allow(dead_code)]
     Register,
     /// Removing an existing registration.
+    #[allow(dead_code)]
     Unregister,
 }
 
@@ -53,13 +59,18 @@ pub enum HotkeyError {
         os: &'static str,
     },
     /// The OS refused one registration/unregistration operation.
+    /// Constructed only by backends with real side effects (Windows worker,
+    /// test doubles) — hence the targeted allowance.
+    #[allow(dead_code)]
     Refused {
         /// Which operation was refused.
         operation: HotkeyOperation,
     },
-    /// The combination is already registered â€” by another application or,
+    /// The combination is already registered — by another application or,
     /// defensively, by ourselves (the engine reconciles desired/applied sets
     /// and never double-registers; seeing this means state drifted).
+    /// Constructed only by the Windows worker and test doubles.
+    #[allow(dead_code)]
     Conflict {
         /// Canonical form of the contested combination (structural data,
         /// not personal).

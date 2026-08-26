@@ -18,9 +18,13 @@
 //! Every failure is typed and closed-vocabulary.
 
 use std::fmt;
-use std::str::FromStr as _;
 
 use openstream_domain::switching::AppIdentity;
+
+// Only the shipped Windows backend parses identity tokens from raw file
+// names; other platforms never reach a parse site.
+#[cfg(target_os = "windows")]
+use std::str::FromStr as _;
 
 /// Typed focused-app failures; never carries OS text, paths, or titles.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,7 +40,10 @@ pub enum FocusError {
     },
     /// The concrete backend could not observe focus right now (e.g. a
     /// secure desktop or an access refusal). Surfaced as a transient typed
-    /// failure; never guessed into a stable identity.
+    /// failure; never guessed into a stable identity. Constructed only by
+    /// backends with real observation side effects (Windows source) —
+    /// hence the targeted allowance for platform-dependent reachability.
+    #[allow(dead_code)]
     Refused,
 }
 
