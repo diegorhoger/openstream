@@ -46,6 +46,8 @@ export interface LiftState {
 
 export interface EditorState {
   readonly phase: 'loading' | 'ready' | 'failed';
+  /** Which main experience fills the window: authoring or live surface. */
+  readonly mode: 'edit' | 'live';
   readonly loadErrorToken: string | null;
   readonly autosaveActive: boolean;
   readonly snapshot: WorkspaceSnapshot;
@@ -70,6 +72,7 @@ export interface EditorState {
 
 export const initialEditorState: EditorState = {
   phase: 'loading',
+  mode: 'edit',
   loadErrorToken: null,
   autosaveActive: false,
   snapshot: { decks: [], profiles: [] },
@@ -93,6 +96,7 @@ export type EditorAction =
   | { type: 'load-failed'; token: string }
   | { type: 'applied'; outcome: ApplyOutcome }
   | { type: 'op-rejected'; token: string }
+  | { type: 'mode-changed'; mode: 'edit' | 'live' }
   | { type: 'select'; selection: Selection | null; announceName?: string }
   | { type: 'open-page'; pageId: string }
   | { type: 'zoom'; direction: 'in' | 'out' | 'reset' }
@@ -242,6 +246,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     }
     case 'load-failed':
       return { ...state, phase: 'failed', loadErrorToken: action.token };
+    case 'mode-changed':
+      return { ...state, mode: action.mode };
     case 'applied': {
       const next = adoptOutcome(state, action.outcome);
       return next;

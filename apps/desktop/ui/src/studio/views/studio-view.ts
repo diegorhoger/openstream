@@ -39,6 +39,8 @@ export interface StudioToolbarCallbacks {
   onLocale(locale: LocaleId): void;
   onNewDeck(): void;
   onNewProfile(): void;
+  /** Switches the main experience between authoring and live surface. */
+  onMode(mode: 'edit' | 'live'): void;
 }
 
 /** Everything the shell can ask the app to do. */
@@ -82,6 +84,19 @@ function toolbar(state: EditorState, callbacks: StudioToolbarCallbacks): ReactEl
         'aria-pressed': state.locale === locale,
         lang: locale,
         onClick: () => callbacks.onLocale(locale),
+      },
+      label,
+    );
+  const modeButton = (mode: 'edit' | 'live', label: string): ReactElement =>
+    createElement(
+      'button',
+      {
+        key: mode,
+        type: 'button',
+        className:
+          state.mode === mode ? 'control-button control-button-toggled' : 'control-button',
+        'aria-pressed': state.mode === mode,
+        onClick: () => callbacks.onMode(mode),
       },
       label,
     );
@@ -147,6 +162,13 @@ function toolbar(state: EditorState, callbacks: StudioToolbarCallbacks): ReactEl
       { className: 'language-group', role: 'group', 'aria-label': messages['studio.toolbar.language'] },
       localeButton('en-US', messages['studio.toolbar.language.en']),
       localeButton('pt-BR', messages['studio.toolbar.language.pt']),
+    ),
+    createElement('span', { className: 'toolbar-separator', 'aria-hidden': 'true' }),
+    createElement(
+      'span',
+      { role: 'group', 'aria-label': messages['studio.toolbar.mode'] },
+      modeButton('edit', messages['studio.mode.edit']),
+      modeButton('live', messages['studio.mode.live']),
     ),
   );
 }
@@ -214,10 +236,17 @@ export function renderStudioShell(
 
 /**
  * Full editor for a ready session: side panels, canvas, and inspector
- * composed exactly as shipped. This is the single entry point App renders
- * and the accessibility contract executes — there is no second markup path.
+ * composed exactly as shipped. In live mode the editing chrome is absent
+ * and `liveContent` (the surface view) fills the main area instead — per
+ * DESIGN_SYSTEM.md, "Surface: controls dominate". This is the single entry
+ * point App renders and the accessibility contract executes — there is no
+ * second markup path.
  */
-export function renderStudio(state: EditorState, callbacks: StudioCallbacks): ReactElement {
+export function renderStudio(
+  state: EditorState,
+  callbacks: StudioCallbacks,
+  liveContent: ReactElement | null = null,
+): ReactElement {
   const messages = messagesFor(state.locale);
 
   if (state.phase !== 'ready') {
@@ -236,6 +265,10 @@ export function renderStudio(state: EditorState, callbacks: StudioCallbacks): Re
             }),
           );
     return renderStudioShell(state, [content], callbacks);
+  }
+
+  if (state.mode === 'live' && liveContent !== null) {
+    return renderStudioShell(state, [liveContent], callbacks);
   }
 
   const selectedDeckId =

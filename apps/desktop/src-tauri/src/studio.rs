@@ -1159,6 +1159,22 @@ impl StudioState {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
+
+    /// The current authoritative snapshot when a session composed; `None`
+    /// means no data directory resolved and nothing can be served.
+    #[must_use]
+    pub fn snapshot(&self) -> Option<WorkspaceSnapshot> {
+        let inner = self.lock();
+        inner.session.as_ref().map(|session| session.snapshot())
+    }
+
+    /// Whether the editor session composed at all (a data directory
+    /// resolved). The live surface uses this as its honest
+    /// engine-availability flag.
+    #[must_use]
+    pub fn is_available(&self) -> bool {
+        self.lock().session.is_some()
+    }
 }
 
 use std::sync::Mutex;
