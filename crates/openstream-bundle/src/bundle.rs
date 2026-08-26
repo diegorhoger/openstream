@@ -136,7 +136,7 @@ pub fn parse_bundle(bytes: &[u8]) -> Result<ParsedBundle, BundleError> {
             typed => payloads.push((typed, &member.raw)),
         }
     }
-    payloads.sort_by(|left, right| left.0.as_str().cmp(&right.0.as_str()));
+    payloads.sort_by_key(|left| left.0.as_str());
     for ((name, raw), entry) in payloads.iter().zip(&parsed_manifest.entries) {
         if name.as_str() != entry.name {
             return Err(inconsistent("entries do not match members"));

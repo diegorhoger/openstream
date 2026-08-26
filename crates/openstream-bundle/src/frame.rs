@@ -207,16 +207,6 @@ pub(crate) fn write_frame(members: &[(String, Vec<u8>)]) -> Vec<u8> {
     out
 }
 
-/// Deflates `raw` for hostile-input tests: produces a stored-form blob with
-/// a chosen expansion ratio without going through the public builder.
-#[cfg(test)]
-pub(crate) fn deflate_for_test(raw: &[u8]) -> Vec<u8> {
-    use std::io::Write as _;
-    let mut encoder = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::best());
-    let _ = encoder.write_all(raw);
-    encoder.finish().expect("encoder owns buffer")
-}
-
 fn malformed(reason: &'static str) -> BundleError {
     BundleError::MalformedFrame { reason }
 }

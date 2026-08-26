@@ -102,10 +102,10 @@ pub(crate) fn parse_manifest(bytes: &[u8]) -> Result<Manifest, BundleError> {
         if name.is_manifest() {
             return Err(inconsistent("manifest lists itself"));
         }
-        if let Some(prev) = previous {
-            if entry.name.as_str() <= prev {
-                return Err(inconsistent("entries not strictly ascending"));
-            }
+        if let Some(prev) = previous
+            && entry.name.as_str() <= prev
+        {
+            return Err(inconsistent("entries not strictly ascending"));
         }
         previous = Some(entry.name.as_str());
         validate_hash_spelling(&entry.sha256)?;

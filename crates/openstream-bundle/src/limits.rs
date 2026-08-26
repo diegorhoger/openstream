@@ -57,15 +57,19 @@ mod tests {
 
     #[test]
     fn caps_are_ordered_and_bounded() {
-        assert!(MAX_MEMBER_UNCOMPRESSED_BYTES <= MAX_BUNDLE_FILE_BYTES * 2);
-        assert!(MAX_MEMBER_NAME_BYTES >= 45);
-        assert!(MAX_DECOMPRESSION_RATIO > 1);
+        const {
+            assert!(MAX_MEMBER_UNCOMPRESSED_BYTES <= MAX_BUNDLE_FILE_BYTES * 2);
+            assert!(MAX_MEMBER_NAME_BYTES >= 45);
+            assert!(MAX_DECOMPRESSION_RATIO > 1);
+        }
     }
 
     #[test]
     fn member_count_cap_leaves_room_for_legal_workspaces() {
         // A workspace holds at most its decks plus profiles plus the manifest;
         // the store's own limits keep real snapshots far below the cap.
-        assert!(MAX_MEMBER_COUNT >= 3);
+        const {
+            assert!(MAX_MEMBER_COUNT >= 3);
+        }
     }
 }
