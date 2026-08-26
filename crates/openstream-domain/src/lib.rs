@@ -23,9 +23,13 @@
 //! milestones on top of these foundations.
 
 pub mod audit;
+pub mod audit_chain;
 pub mod capability;
+pub mod consent;
 pub mod control;
+pub mod crash_report;
 pub mod deck;
+pub mod diagnostic_surface;
 pub mod document;
 pub mod error;
 pub mod folder;
@@ -34,7 +38,10 @@ pub mod ids;
 pub mod limits;
 pub mod page;
 pub mod profile;
+pub mod rate_limiter;
+pub mod redaction;
 pub mod secret;
+pub mod structured_log;
 pub mod switching;
 pub mod version;
 
