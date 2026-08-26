@@ -67,6 +67,25 @@ pub const MAX_APP_IDENTITY_BYTES: usize = 64;
 /// (modifiers plus key; issue #19). Four modifiers + one key.
 pub const MAX_HOTKEY_TOKENS: usize = 5;
 
+/// Maximum number of diagnostic log entries retained in the in-memory
+/// structured log ring buffer. Overflow drops oldest entries (tail eviction,
+/// never fails closed — diagnostics are best-effort, not evidence).
+pub const MAX_DIAGNOSTIC_LOG_ENTRIES: usize = 8_192;
+
+/// Maximum UTF-8 byte length of one diagnostic log message.
+pub const MAX_DIAGNOSTIC_MESSAGE_BYTES: usize = 1_024;
+
+/// Maximum number of crash reports retained on disk. Older reports are
+/// pruned when the bound is reached (newest-first).
+pub const MAX_CRASH_REPORTS: usize = 64;
+
+/// Default telemetry consent is OFF; revocable at any time (taxonomy §3
+/// consent column, hard-stop: consent is never implicit).
+pub const TELEMETRY_CONSENT_DEFAULT: bool = false;
+
+/// Maximum number of rate-limiter buckets tracked simultaneously.
+pub const MAX_RATE_LIMITER_BUCKETS: usize = 256;
+
 /// Validates a user-text field (title, profile name, control label): not
 /// empty after trimming, at most [`MAX_TEXT_BYTES`] UTF-8 bytes. Returns the
 /// typed error naming only the structural field, never the content.

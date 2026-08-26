@@ -140,6 +140,12 @@ pub enum DomainError {
     /// A switch rule stored inside one profile targets a different profile
     /// or workspace (issue #19). Rules live on their target profile only.
     ForeignSwitchRule,
+    /// A diagnostic entry failed validation (oversized message, empty error
+    /// message, or structural rule violation).
+    DiagnosticValidationError {
+        /// Structural reason code, never user content.
+        reason: &'static str,
+    },
 }
 
 /// Structural reasons a folder path is invalid. Matchable without exposing
@@ -235,6 +241,9 @@ impl fmt::Display for DomainError {
             }
             Self::ForeignSwitchRule => {
                 write!(f, "switch rule targets a foreign profile or workspace")
+            }
+            Self::DiagnosticValidationError { reason } => {
+                write!(f, "diagnostic validation failed: {reason}")
             }
         }
     }
