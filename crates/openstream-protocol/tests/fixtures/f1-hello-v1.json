@@ -1,0 +1,12 @@
+{
+  "fixture_class": "F1-canonical-encoding",
+  "message_type": "Hello",
+  "protocol_major": 1,
+  "protocol_minor": 2,
+  "session_id": "a1b2c3d4-e5f6-7a8b-9c0d-e1f2a3b4c5d6",
+  "message_id": "f1e2d3c4-b5a6-7c8d-9e0f-1a2b3c4d5e6f",
+  "sequence": 1,
+  "correlation_id": "f1e2d3c4-b5a6-7c8d-9e0f-1a2b3c4d5e6f",
+  "sent_at_ms_utc": 1700000000000,
+  "body": "hello_fixture_v1"
+}

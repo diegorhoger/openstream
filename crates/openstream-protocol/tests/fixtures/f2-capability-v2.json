@@ -1,0 +1,12 @@
+{
+  "fixture_class": "F2-negotiation-matrix",
+  "message_type": "CapabilitySnapshot",
+  "protocol_major": 1,
+  "protocol_minor": 2,
+  "session_id": "b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e",
+  "message_id": "a2b3c4d5-e6f7-8a9b-0c1d-2e3f4a5b6c7d",
+  "sequence": 2,
+  "correlation_id": "b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e",
+  "sent_at_ms_utc": 1700000001000,
+  "body": "capability_snapshot_v2"
+}
