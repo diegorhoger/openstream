@@ -5,6 +5,13 @@
 //! prologue, SAS comparison, explicit desktop confirmation) and established
 //! peer sessions with pause/revoke/revoke-all (PROTOCOL.md, SECURITY.md).
 //! No suite fallback exists; pairing failures fail closed.
-//!
-//! Status: M0 boundary skeleton. Pairing flows arrive with the LAN security
-//! milestones behind their permission/security gate.
+
+pub mod audit;
+pub mod identity;
+pub mod pairing;
+pub mod revocation;
+
+pub use audit::{PairingAudit, RevocationAudit};
+pub use identity::{IdentityVector, KeyFingerprint};
+pub use pairing::{PairingSequence, PairingState, SessionCapability};
+pub use revocation::{RevocationRecord, RevocationScope};
