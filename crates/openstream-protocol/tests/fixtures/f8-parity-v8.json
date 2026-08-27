@@ -1,0 +1,12 @@
+{
+  "fixture_class": "F8-cross-language-parity",
+  "message_type": "Hello",
+  "protocol_major": 1,
+  "protocol_minor": 2,
+  "session_id": "b8c9d0e1-f2a3-4b5c-6d7e-8f9a0b1c2d3e",
+  "message_id": "c8d9e0f1-a2b3-4c5d-6e7f-8a9b0c1d2e3f4",
+  "sequence": 8,
+  "correlation_id": "b8c9d0e1-f2a3-4b5c-6d7e-8f9a0b1c2d3e",
+  "sent_at_ms_utc": 1700000007000,
+  "body": "cross_lang_parity_v8"
+}

@@ -1,0 +1,12 @@
+{
+  "fixture_class": "F6-recovery-chain",
+  "message_type": "Ack",
+  "protocol_major": 1,
+  "protocol_minor": 2,
+  "session_id": "f6a7b8c9-d0e1-2f3a-4b5c-6d7e8f9a0b1c",
+  "message_id": "e6f7a8b9-c0d1-2e3f-4a5b-6c7d8e9f0a1b2",
+  "sequence": 6,
+  "correlation_id": "f6a7b8c9-d0e1-2f3a-4b5c-6d7e8f9a0b1c",
+  "sent_at_ms_utc": 1700000005000,
+  "body": "recovery_chain_v6"
+}

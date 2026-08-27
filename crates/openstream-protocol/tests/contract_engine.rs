@@ -1,12 +1,13 @@
 //! Contract tests: codec against engine runtime (`OSCP_MESSAGES.md` §8–§9,
 //! `crates/openstream-engine`).
 
+use openstream_engine::ENGINE_MAJOR;
 use openstream_protocol::*;
 
 /// Contract: engine's ENGINE_MAJOR (1) must match protocol major (§3, ADR-0005).
 #[test]
 fn contract_engine_protocol_major_alignment() {
-    assert_eq!(PROTOCOL_MAJOR, 1);
+    assert_eq!(PROTOCOL_MAJOR, ENGINE_MAJOR);
 }
 
 /// Contract: UUIDv7 format used by engine identifiers (§4).

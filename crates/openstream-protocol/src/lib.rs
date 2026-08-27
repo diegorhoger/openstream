@@ -4,8 +4,6 @@
 //! remain pending (`tools/codegen.json`). No transport, pairing, or platform
 //! policy embedded.
 
-
-
 /// Protocol major must always equal 1 (`PROTOCOL.md`).
 pub const PROTOCOL_MAJOR: u32 = 1;
 /// Effective minor for M2 codec; additive only within major.
@@ -16,47 +14,75 @@ pub const PROTOCOL_MINOR: u32 = 2;
 pub struct UuidV7(String);
 
 impl UuidV7 {
+    /// Create a new UUIDv7 from a string identifier.
     pub fn new(id: impl Into<String>) -> Self {
         let s = id.into();
         assert!(
-            s.len() == 36 && !s.contains(' ') && s.chars().all(|c| c.is_ascii_hexdigit() || c == '-'),
+            s.len() == 36
+                && !s.contains(' ')
+                && s.chars().all(|c| c.is_ascii_hexdigit() || c == '-'),
             "invalid UUIDv7 format: {}",
             s
         );
         Self(s.to_ascii_lowercase())
     }
-    pub fn as_str(&self) -> &str { &self.0 }
+    /// Return the UUIDv7 as a string slice.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 /// Envelope body kinds (§2).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum BodyKind {
+    /// Initial handshake message.
     Hello,
+    /// Capability snapshot message.
     CapabilitySnapshot,
+    /// Deck snapshot message.
     DeckSnapshot,
+    /// Deck patch message.
     DeckPatch,
+    /// Control event message.
     ControlEvent,
+    /// Execution request message.
     ExecuteRequest,
+    /// Execution update message.
     ExecutionUpdate,
+    /// Asset request message.
     AssetRequest,
+    /// Asset chunk message.
     AssetChunk,
+    /// Acknowledgment message.
     Ack,
+    /// Protocol error message.
     OscpError,
+    /// Heartbeat message.
     Heartbeat,
 }
 
 /// The canonical envelope (§2, `PROTOCOL.md`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Envelope {
+    /// Protocol major version.
     pub protocol_major: u32,
+    /// Protocol minor version.
     pub protocol_minor: u32,
+    /// Session identifier.
     pub session_id: UuidV7,
+    /// Sequence number.
     pub sequence: u64,
+    /// Message identifier.
     pub message_id: UuidV7,
+    /// Correlation identifier.
     pub correlation_id: UuidV7,
-    pub sent_at: i64, // UTC ms since epoch (fake-clock compatible)
+    /// Sent timestamp in UTC milliseconds.
+    pub sent_at: i64,
+    /// Expiration timestamp (optional).
     pub expires_at: Option<i64>,
+    /// Body kind.
     pub body_kind: BodyKind,
+    /// Raw body bytes.
     pub body_bytes: Vec<u8>,
 }
 
@@ -65,8 +91,8 @@ impl Envelope {
     /// length-prefixed wire format; protobuf artifacts remain future.
     pub fn encode(&self) -> Vec<u8> {
         let mut out = Vec::with_capacity(256);
-        out.extend_from_slice(&(self.protocol_major as u32).to_le_bytes());
-        out.extend_from_slice(&(self.protocol_minor as u32).to_le_bytes());
+        out.extend_from_slice(&self.protocol_major.to_le_bytes());
+        out.extend_from_slice(&self.protocol_minor.to_le_bytes());
         out.extend_from_slice(&(self.session_id.as_str().len() as u32).to_le_bytes());
         out.extend_from_slice(self.session_id.as_str().as_bytes());
         out.extend_from_slice(&self.sequence.to_le_bytes());
@@ -87,43 +113,63 @@ impl Envelope {
 
     /// Decode from byte vector; fail-closed on parse failure.
     pub fn decode(mut data: &[u8]) -> Option<Self> {
-        if data.len() < 8 { return None; }
+        if data.len() < 8 {
+            return None;
+        }
         let protocol_major = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
         data = &data[4..];
         let protocol_minor = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
         data = &data[4..];
         let sid_len = u32::from_le_bytes([data[0], data[1], data[2], data[3]]) as usize;
         data = &data[4..];
-        if data.len() < sid_len { return None; }
+        if data.len() < sid_len {
+            return None;
+        }
         let session_id = UuidV7::new(std::str::from_utf8(&data[..sid_len]).ok()?.to_string());
         data = &data[sid_len..];
-        if data.len() < 8 { return None; }
+        if data.len() < 8 {
+            return None;
+        }
         let sequence = u64::from_le_bytes([
             data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
         ]);
         data = &data[8..];
-        if data.len() < 4 { return None; }
+        if data.len() < 4 {
+            return None;
+        }
         let msg_len = u32::from_le_bytes([data[0], data[1], data[2], data[3]]) as usize;
         data = &data[4..];
-        if data.len() < msg_len { return None; }
+        if data.len() < msg_len {
+            return None;
+        }
         let message_id = UuidV7::new(std::str::from_utf8(&data[..msg_len]).ok()?.to_string());
         data = &data[msg_len..];
-        if data.len() < 4 { return None; }
+        if data.len() < 4 {
+            return None;
+        }
         let corr_len = u32::from_le_bytes([data[0], data[1], data[2], data[3]]) as usize;
         data = &data[4..];
-        if data.len() < corr_len { return None; }
+        if data.len() < corr_len {
+            return None;
+        }
         let correlation_id = UuidV7::new(std::str::from_utf8(&data[..corr_len]).ok()?.to_string());
         data = &data[corr_len..];
-        if data.len() < 8 { return None; }
+        if data.len() < 8 {
+            return None;
+        }
         let sent_at = i64::from_le_bytes([
             data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
         ]);
         data = &data[8..];
-        if data.is_empty() { return None; }
+        if data.is_empty() {
+            return None;
+        }
         let has_expiry = data[0] == 1;
         data = &data[1..];
         let expires_at = if has_expiry {
-            if data.len() < 8 { return None; }
+            if data.len() < 8 {
+                return None;
+            }
             Some(i64::from_le_bytes([
                 data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
             ]))
@@ -131,7 +177,9 @@ impl Envelope {
             None
         };
         data = if has_expiry { &data[8..] } else { data };
-        if data.is_empty() { return None; }
+        if data.is_empty() {
+            return None;
+        }
         let body_kind = match data[0] {
             0 => BodyKind::Hello,
             1 => BodyKind::CapabilitySnapshot,
@@ -148,10 +196,14 @@ impl Envelope {
             _ => return None,
         };
         data = &data[1..];
-        if data.len() < 4 { return None; }
+        if data.len() < 4 {
+            return None;
+        }
         let body_len = u32::from_le_bytes([data[0], data[1], data[2], data[3]]) as usize;
         data = &data[4..];
-        if data.len() < body_len { return None; }
+        if data.len() < body_len {
+            return None;
+        }
         let body_bytes = data[..body_len].to_vec();
         Some(Envelope {
             protocol_major,

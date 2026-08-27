@@ -1,0 +1,13 @@
+{
+  "fixture_class": "F4-expiry",
+  "message_type": "Hello",
+  "protocol_major": 1,
+  "protocol_minor": 2,
+  "session_id": "d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a",
+  "message_id": "c4d5e6f7-a8b9-0c1d-2e3f-4a5b6c7d8e9f",
+  "sequence": 4,
+  "correlation_id": "d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a",
+  "sent_at_ms_utc": 1700000003000,
+  "expires_at_ms_utc": 1700000103000,
+  "body": "expiry_v4"
+}
