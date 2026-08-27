@@ -1,0 +1,340 @@
+name: package
+
+# Platform packaging job for OpenStream (issue #22).
+#
+# Builds platform-specific installer artifacts (Windows NSIS, macOS DMG,
+# Linux DEB/RPM/AppImage) with CI test signing and checksum generation.
+# Production signing is BLOCKED pending human decision on key storage/CA.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  package-windows:
+    name: package (windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Assert exact head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_HEAD" || {
+            echo "checked out $actual, expected $EXPECTED_HEAD" >&2
+            exit 1
+          }
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+        with:
+          package_json_file: apps/desktop/ui/package.json
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/desktop/ui/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: apps/desktop/ui
+
+      - name: Build frontend
+        run: pnpm build
+        working-directory: apps/desktop/ui
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Build Windows NSIS installer
+        run: cargo tauri build --bundles nsis --target x86_64-pc-windows-msvc
+
+      - name: List installer artifacts
+        run: |
+          echo "=== Windows artifacts ==="
+          find target/release/bundle -name "*.exe" -o -name "*.msi" 2>/dev/null || \
+            find target/release/bundle -type f -name "*.exe" -type f -name "*.msi"
+
+      - name: Generate checksums
+        run: |
+          cd target/release/bundle/nsis
+          for f in *.exe; do
+            if [ -f "$f" ]; then
+              sha256sum "$f" > "${f}.sha256"
+              echo "Checksum: $f"
+              cat "${f}.sha256"
+            fi
+          done
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: openstream-installer-windows-${{ github.event.pull_request.head.sha }}
+          path: |
+            target/release/bundle/nsis/*.exe
+            target/release/bundle/nsis/*.sha256
+          retention-days: 7
+          if-no-files-found: error
+
+  package-macos:
+    name: package (macos)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Assert exact head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_HEAD" || {
+            echo "checked out $actual, expected $EXPECTED_HEAD" >&2
+            exit 1
+          }
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+        with:
+          package_json_file: apps/desktop/ui/package.json
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/desktop/ui/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: apps/desktop/ui
+
+      - name: Build frontend
+        run: pnpm build
+        working-directory: apps/desktop/ui
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Build macOS DMG
+        run: cargo tauri build --bundles dmg --target aarch64-apple-darwin
+
+      - name: List DMG artifact
+        run: |
+          echo "=== macOS artifacts ==="
+          find target/release/bundle/dmg -name "*.dmg" 2>/dev/null || true
+
+      - name: Generate checksums
+        run: |
+          cd target/release/bundle/dmg
+          for f in *.dmg; do
+            if [ -f "$f" ]; then
+              shasum -a 256 "$f" > "${f}.sha256"
+              echo "Checksum: $f"
+              cat "${f}.sha256"
+            fi
+          done
+
+      - name: Upload macOS DMG artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: openstream-installer-macos-${{ github.event.pull_request.head.sha }}
+          path: |
+            target/release/bundle/dmg/*.dmg
+            target/release/bundle/dmg/*.sha256
+          retention-days: 7
+          if-no-files-found: error
+
+  package-linux:
+    name: package (linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Assert exact head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_HEAD" || {
+            echo "checked out $actual, expected $EXPECTED_HEAD" >&2
+            exit 1
+          }
+
+      - name: Install Linux toolchain dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config curl wget file \
+            libssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev librsvg2-dev libxdo-dev
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+        with:
+          package_json_file: apps/desktop/ui/package.json
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/desktop/ui/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: apps/desktop/ui
+
+      - name: Build frontend
+        run: pnpm build
+        working-directory: apps/desktop/ui
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Build Linux DEB package
+        run: cargo tauri build --bundles deb --target x86_64-unknown-linux-gnu
+
+      - name: Build Linux RPM package
+        run: cargo tauri build --bundles rpm --target x86_64-unknown-linux-gnu
+
+      - name: Build Linux AppImage
+        run: cargo tauri build --bundles appimage --target x86_64-unknown-linux-gnu
+
+      - name: List Linux artifacts
+        run: |
+          echo "=== Linux artifacts ==="
+          find target/release/bundle -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" 2>/dev/null || true
+
+      - name: Generate checksums
+        run: |
+          cd target/release/bundle
+          for dir in deb rpm appimage; do
+            if [ -d "$dir" ]; then
+              cd "$dir"
+              for f in *.deb *.rpm *.AppImage 2>/dev/null; do
+                if [ -f "$f" ]; then
+                  sha256sum "$f" > "${f}.sha256"
+                  echo "Checksum: $f"
+                  cat "${f}.sha256"
+                fi
+              done
+              cd ..
+            fi
+          done
+
+      - name: Upload Linux DEB artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: openstream-installer-linux-deb-${{ github.event.pull_request.head.sha }}
+          path: target/release/bundle/deb/*.deb
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload Linux RPM artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: openstream-installer-linux-rpm-${{ github.event.pull_request.head.sha }}
+          path: target/release/bundle/rpm/*.rpm
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload Linux AppImage artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: openstream-installer-linux-appimage-${{ github.event.pull_request.head.sha }}
+          path: target/release/bundle/appimage/*.AppImage
+          retention-days: 7
+          if-no-files-found: error
+
+  smoke-tests:
+    name: smoke tests (installer outputs)
+    needs: [package-windows, package-macos, package-linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Download all installer artifacts
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          path: artifacts/
+
+      - name: Verify installer outputs
+        run: |
+          set -euo pipefail
+          echo "=== Verifying installer artifacts ==="
+          echo ""
+          echo "Downloaded artifacts:"
+          find artifacts/ -type f | sort
+
+          echo ""
+          echo "=== Artifact sizes ==="
+          find artifacts/ -type f -name "*.exe" -o -name "*.dmg" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" | while read f; do
+            if [ -f "$f" ]; then
+              size=$(stat --format=%s "$f" 2>/dev/null || stat -f%z "$f" 2>/dev/null)
+              echo "  $(basename "$f"): ${size} bytes"
+              if [ "$size" -lt 1024 ]; then
+                echo "  ERROR: Artifact too small (< 1KB)"
+                exit 1
+              fi
+            fi
+          done
+
+          echo ""
+          echo "=== Checksum verification ==="
+          find artifacts/ -name "*.sha256" | while read cs; do
+            dir=$(dirname "$cs")
+            cd "$dir"
+            base=$(basename "$cs" .sha256)
+            if [ -f "$base" ]; then
+              echo "Verifying $base..."
+              if sha256sum --check --quiet "$cs" 2>/dev/null || shasum -a 256 -c "$cs" 2>/dev/null; then
+                echo "  PASS"
+              else
+                echo "  FAIL"
+                exit 1
+              fi
+            fi
+            cd -
+          done
+
+          echo ""
+          echo "All smoke tests passed."

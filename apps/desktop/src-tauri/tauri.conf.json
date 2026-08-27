@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../ui/dist",
     "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "pnpm --dir ../ui dev",
-    "beforeBuildCommand": "pnpm --dir ../ui build"
+    "beforeDevCommand": "pnpm --dir ./ui dev",
+    "beforeBuildCommand": "pnpm --dir ./ui build"
   },
   "app": {
     "windows": [
@@ -26,7 +26,29 @@
     }
   },
   "bundle": {
-    "active": false,
-    "icon": ["icons/icon.ico"]
+    "active": true,
+    "icon": ["icons/icon.png", "icons/icon.ico"],
+    "windows": {
+      "nsis": {
+        "installMode": "both",
+        "displayLanguageSelector": true,
+        "installerIcon": "icons/icon.ico",
+        "languages": ["English"]
+      },
+      "wix": null
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "linux": {
+      "deb": {
+        "depends": ["libgtk-3-0", "libwebkit2gtk-4.1-0", "libayatana-appindicator3-1", "librsvg2-0", "libxdo0"],
+        "section": "net",
+        "priority": "optional"
+      },
+      "rpm": {
+        "depends": ["gtk3", "webkit2gtk4.1", "libappindicator-gtk3", "librsvg2", "libxdo"]
+      }
+    }
   }
 }
