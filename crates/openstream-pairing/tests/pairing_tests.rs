@@ -10,6 +10,16 @@ fn test_identity() -> IdentityVector {
     }
 }
 
+fn active_grant_ref() -> String {
+    "peer:018f6a1c-7b21-7cc0-9f31-0e3d5a9d4c11".to_string()
+}
+
+fn pairing_seq() -> PairingSequence {
+    let mut seq = PairingSequence::new();
+    seq.grant_ref = Some(active_grant_ref());
+    seq
+}
+
 #[test]
 fn pairing_sequence_init_deny_by_default() {
     let seq = PairingSequence::new();
@@ -22,7 +32,7 @@ fn pairing_sequence_init_deny_by_default() {
 
 #[test]
 fn confirm_pairing_sets_state_and_capability() {
-    let mut seq = PairingSequence::new();
+    let mut seq = pairing_seq();
     let id = test_identity();
     let cap = SessionCapability::Read { identity: id.clone() };
     assert!(seq.confirm_pairing(id.clone(), cap.clone()).is_ok());
@@ -33,7 +43,7 @@ fn confirm_pairing_sets_state_and_capability() {
 
 #[test]
 fn capability_mismatch_fails_closed() {
-    let mut seq = PairingSequence::new();
+    let mut seq = pairing_seq();
     let id = test_identity();
     let cap = SessionCapability::Read { identity: id.clone() };
     assert!(seq.confirm_pairing(id.clone(), cap.clone()).is_ok());
@@ -48,7 +58,7 @@ fn capability_mismatch_fails_closed() {
 
 #[test]
 fn transition_to_active_requires_confirmed_and_identity() {
-    let mut seq = PairingSequence::new();
+    let mut seq = pairing_seq();
     assert!(seq.transition_to_active().is_err());
     let id = test_identity();
     let cap = SessionCapability::Read { identity: id.clone() };
@@ -59,7 +69,7 @@ fn transition_to_active_requires_confirmed_and_identity() {
 
 #[test]
 fn revocation_audit_durable_keep_records() {
-    let mut seq = PairingSequence::new();
+    let mut seq = pairing_seq();
     let id = test_identity();
     let cap = SessionCapability::Read { identity: id.clone() };
     seq.confirm_pairing(id.clone(), cap).unwrap();
@@ -77,7 +87,7 @@ fn revocation_audit_durable_keep_records() {
 
 #[test]
 fn revocation_scope_peer_only_on_fingerprint_match() {
-    let mut seq = PairingSequence::new();
+    let mut seq = pairing_seq();
     let id = test_identity();
     let cap = SessionCapability::Control {
         identity: id.clone(),
@@ -96,7 +106,7 @@ fn revocation_scope_peer_only_on_fingerprint_match() {
 
 #[test]
 fn revocation_scope_all_global_applies() {
-    let mut seq = PairingSequence::new();
+    let mut seq = pairing_seq();
     let id = test_identity();
     let cap = SessionCapability::Control {
         identity: id.clone(),
@@ -115,7 +125,7 @@ fn revocation_scope_all_global_applies() {
 
 #[test]
 fn revocation_scope_capability_applies_to_capability() {
-    let mut seq = PairingSequence::new();
+    let mut seq = pairing_seq();
     let id = test_identity();
     let cap = SessionCapability::Control {
         identity: id.clone(),
@@ -145,7 +155,7 @@ fn verify_identity_checks_context() {
     assert!(!seq.verify_identity(&[1; 32]));
     // Even with fingerprint match, empty context should fail.
     // Let's set identity first for a positive check.
-    let mut seq2 = PairingSequence::new();
+    let mut seq2 = pairing_seq();
     let id_full = IdentityVector {
         fingerprint: [7; 32],
         context: "scope-bound".to_string(),

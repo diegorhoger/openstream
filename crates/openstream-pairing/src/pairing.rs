@@ -2,6 +2,7 @@
 
 use crate::{IdentityVector, PairingAudit, RevocationRecord};
 
+
 /// Capability-bound pairing: pairing allowed only with granted capabilities.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SessionCapability {
@@ -47,6 +48,9 @@ pub struct PairingSequence {
     pub capability: Option<SessionCapability>,
     /// Active revocation records (fail-closed if revoked).
     pub revocations: Vec<RevocationRecord>,
+    /// Grant reference (vault/ledger linkage for capability-bound pairing);
+    /// fail-closed if missing or revoked (#8 grants mechanism).
+    pub grant_ref: Option<String>,
     /// Audit log (append-only, redacted).
     pub audit: Vec<PairingAudit>,
     /// Monotonic audit sequence for durable tracking.
@@ -62,7 +66,18 @@ impl PairingSequence {
             capability: None,
             revocations: Vec::new(),
             audit: Vec::new(),
+            grant_ref: None,
             sequence: 0,
+        }
+    }
+
+    /// Fail-closed grant linkage (#8 grants / vault reference): pairing
+    /// allowed only when an active, unrevoked grant reference is present.
+    fn verify_grant_ref(&self) -> Result<(), String> {
+        match self.grant_ref.as_ref() {
+            Some(ref r) if !r.is_empty() && r.as_str() != "revoked" => Ok(()),
+            Some(_) => Err("grant_revoked_or_invalid".to_string()),
+            None => Err("no_active_grant".to_string()),
         }
     }
 
@@ -77,6 +92,8 @@ impl PairingSequence {
         capability: SessionCapability,
     ) -> Result<(), String> {
         // Capability-bound pairing: pairing only allowed with granted capabilities.
+        // Fail-closed: grant reference must be active (not missing/revoked).
+        self.verify_grant_ref()?;
         // Fail-closed: if a capability is already set, it must match exactly;
         // never widen a capability beyond its granted scope.
         if let Some(ref existing) = self.capability {
@@ -163,6 +180,7 @@ impl PairingSequence {
             return Err("not_confirmed".to_string());
         }
         // Check revocation: fail closed.
+        self.verify_grant_ref()?;
         if self.state == PairingState::Revoked {
             return Err("revoked".to_string());
         }
