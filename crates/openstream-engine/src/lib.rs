@@ -46,6 +46,7 @@ pub mod identifiers;
 pub mod journal;
 pub mod limits;
 pub mod port;
+pub mod fixtures;
 pub mod registry;
 pub mod runtime;
 

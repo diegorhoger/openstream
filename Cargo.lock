@@ -2569,9 +2569,6 @@ dependencies = [
 [[package]]
 name = "openstream-pairing"
 version = "0.1.0"
-dependencies = [
- "openstream-domain",
-]
 
 [[package]]
 name = "openstream-persistence"
