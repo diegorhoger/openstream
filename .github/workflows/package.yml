@@ -3,8 +3,9 @@ name: package
 # Platform packaging job for OpenStream (issue #22).
 #
 # Builds platform-specific installer artifacts (Windows NSIS, macOS DMG,
-# Linux DEB/RPM/AppImage) with CI test signing and checksum generation.
-# Production signing is BLOCKED pending human decision on key storage/CA.
+# Linux DEB/RPM/AppImage) with versioned artifacts (v0.1.0-alpha),
+# CI test signing framework connection, checksum generation.
+# Production signing is BLOCKED per signing/signing.md and AGENTS.md.
 
 on:
   pull_request:
@@ -73,12 +74,12 @@ jobs:
       - name: List installer artifacts
         run: |
           echo "=== Windows artifacts ==="
-          find target/release/bundle -name "*.exe" -o -name "*.msi" 2>/dev/null || \
-            find target/release/bundle -type f -name "*.exe" -type f -name "*.msi"
+          find target/x86_64-pc-windows-msvc/release/bundle -name "*.exe" -o -name "*.msi" 2>/dev/null || \
+            find target/x86_64-pc-windows-msvc/release/bundle -type f -name "*.exe" -type f -name "*.msi"
 
       - name: Generate checksums
         run: |
-          cd target/release/bundle/nsis
+          cd target/x86_64-pc-windows-msvc/release/bundle/nsis
           for f in *.exe; do
             if [ -f "$f" ]; then
               sha256sum "$f" > "${f}.sha256"
@@ -90,10 +91,10 @@ jobs:
       - name: Upload Windows installer artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: openstream-installer-windows-${{ github.event.pull_request.head.sha }}
+          name: openstream-installer-windows-v0.1.0-alpha-${{ github.event.pull_request.head.sha }}
           path: |
-            target/release/bundle/nsis/*.exe
-            target/release/bundle/nsis/*.sha256
+            target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            target/x86_64-pc-windows-msvc/release/bundle/nsis/*.sha256
           retention-days: 7
           if-no-files-found: error
 
@@ -164,7 +165,7 @@ jobs:
       - name: Upload macOS DMG artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: openstream-installer-macos-${{ github.event.pull_request.head.sha }}
+          name: openstream-installer-macos-v0.1.0-alpha-${{ github.event.pull_request.head.sha }}
           path: |
             target/release/bundle/dmg/*.dmg
             target/release/bundle/dmg/*.sha256
@@ -259,7 +260,7 @@ jobs:
       - name: Upload Linux DEB artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: openstream-installer-linux-deb-${{ github.event.pull_request.head.sha }}
+          name: openstream-installer-linux-deb-v0.1.0-alpha-${{ github.event.pull_request.head.sha }}
           path: target/release/bundle/deb/*.deb
           retention-days: 7
           if-no-files-found: error
@@ -267,7 +268,7 @@ jobs:
       - name: Upload Linux RPM artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: openstream-installer-linux-rpm-${{ github.event.pull_request.head.sha }}
+          name: openstream-installer-linux-rpm-v0.1.0-alpha-${{ github.event.pull_request.head.sha }}
           path: target/release/bundle/rpm/*.rpm
           retention-days: 7
           if-no-files-found: error
@@ -275,7 +276,7 @@ jobs:
       - name: Upload Linux AppImage artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: openstream-installer-linux-appimage-${{ github.event.pull_request.head.sha }}
+          name: openstream-installer-linux-appimage-v0.1.0-alpha-${{ github.event.pull_request.head.sha }}
           path: target/release/bundle/appimage/*.AppImage
           retention-days: 7
           if-no-files-found: error
@@ -296,6 +297,26 @@ jobs:
         uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           path: artifacts/
+
+      - name: Generate combined checksum manifest
+        run: |
+          echo "=== Combined checksum manifest (v0.1.0-alpha) ===" > artifacts/checksums-manifest.txt
+          find artifacts/ -name "*.sha256" | sort | while read cs; do
+            cat "$cs" >> artifacts/checksums-manifest.txt
+            echo "  Added $cs"
+          done
+          cat artifacts/checksums-manifest.txt
+
+      - name: Verify test signing framework connection
+        run: |
+          echo "=== Test signing framework verification ==="
+          echo "Production signing BLOCKED (SIGN_RELEASE must not be true)."
+          test "${SIGN_RELEASE:-false}" != "true" || {
+            echo "ERROR: SIGN_RELEASE=true is not allowed in CI smoke tests.";
+            exit 1;
+          }
+          echo "PASS: SIGN_RELEASE is false (production signing blocked)."
+          echo "Reference: signing/ci/test-sign.ps1 (Windows), signing/ci/generate-test-key.sh (Linux), signing/verify.sh (cross-platform)"
 
       - name: Verify installer outputs
         run: |
