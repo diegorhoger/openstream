@@ -6,3 +6,5 @@
 //!
 //! Status: M0 boundary skeleton. The adapter, fixtures, and consent gating
 //! arrive with the LAN milestones.
+
+pub mod fixtures;
