@@ -14,9 +14,9 @@ pub struct IdentityVector {
 pub struct KeyFingerprint(pub [u8; 32]);
 
 impl KeyFingerprint {
-    /// Verify an identity vector against this fingerprint.
+    /// Verify an identity vector against this fingerprint and context.
     pub fn verify(&self, identity: &IdentityVector) -> bool {
-        self.0 == identity.fingerprint
+        self.0 == identity.fingerprint && !identity.context.is_empty()
     }
 
     /// Create fingerprint from raw bytes.
