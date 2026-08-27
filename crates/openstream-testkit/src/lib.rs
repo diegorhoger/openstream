@@ -1,9 +1,10 @@
 //! `openstream-testkit` — deterministic test infrastructure shared by crates.
 //!
-//! Provides fake clocks, fake adapters/services, seeded randomness, side-effect
-//! journals, and golden-fixture helpers so tests stay deterministic and honest
-//! (TECHNICAL_SPEC §10). Test-only by convention: production crates must not
-//! depend on this crate outside `dev-dependencies`.
-//!
-//! Status: M0 boundary skeleton. Fixtures arrive with the protocol and engine
-//! milestones.
+//! M2: golden-fixture loader and fake-clock helpers for codec contract tests.
+
+use std::path::Path;
+
+/// Load a JSON fixture file and return its raw contents.
+pub fn load_fixture<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
+    std::fs::read_to_string(path.as_ref())
+}
