@@ -4,8 +4,10 @@
 //! engine simulators and discovery fixtures. No secrets or production
 //! credentials.
 
-use openstream_engine::fixtures::{fixture_f1_simulator_clock_start, fixture_f4_simulator_expiry_boundary};
 use openstream_engine::Clock;
+use openstream_engine::fixtures::{
+    fixture_f1_simulator_clock_start, fixture_f4_simulator_expiry_boundary,
+};
 
 #[test]
 fn simulator_f1_clock_start_is_deterministic() {

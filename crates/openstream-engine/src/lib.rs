@@ -41,12 +41,12 @@ pub mod clock;
 pub mod domain_ids;
 pub mod error;
 pub mod failure;
+pub mod fixtures;
 pub mod graph;
 pub mod identifiers;
 pub mod journal;
 pub mod limits;
 pub mod port;
-pub mod fixtures;
 pub mod registry;
 pub mod runtime;
 

@@ -153,6 +153,8 @@ jobs:
 
       - name: Generate checksums
         run: |
+          set -euo pipefail
+          shopt -s nullglob
           cd target/release/bundle/dmg
           for f in *.dmg; do
             if [ -f "$f" ]; then
@@ -242,6 +244,8 @@ jobs:
 
       - name: Generate checksums
         run: |
+          set -euo pipefail
+          shopt -s nullglob
           cd target/release/bundle
           for dir in deb rpm appimage; do
             if [ -d "$dir" ]; then
