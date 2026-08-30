@@ -393,7 +393,7 @@ jobs:
             base=$(basename "$cs" .sha256)
             if [ -f "$base" ]; then
               echo "Verifying $base..."
-              if sha256sum --check --quiet "$cs" 2>/dev/null || shasum -a 256 -c "$cs" 2>/dev/null; then
+              if sha256sum --check --quiet "$base.sha256" 2>/dev/null || shasum -a 256 -c "$base.sha256" 2>/dev/null; then
                 echo "  PASS"
                 verify_count=$((verify_count + 1))
               else

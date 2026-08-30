@@ -86,3 +86,15 @@ to restore repository + CI integrity:
 - The follow-up #25 PR and the #26 revalidation PR are sequenced and
   may not be merged out of order. M2 #30 (security suite) and M3+
   work is blocked on #26's valid restoration.
+
+## Repair PR revisions
+
+| Head      | Change | Status |
+|----------:|:-------|:-------|
+| b8f2abf   | initial repair (governance/format only); workflow paths still wrong | superseded |
+| f3015cb   | fix macOS/Linux bundle paths to target-qualified dirs; fail-closed checksum generation; remove invalid `*.deb *.rpm *.AppImage 2>/dev/null` pattern; add per-format `checksums.sha256`; durable in-tree incident record | superseded |
+| <next>    | fix smoke-test checksum verification loop: `sha256sum --check` was called with the full relative path AFTER `cd` to the checksum's directory, so the path resolved to a non-existent file and the first per-artifact check always returned exit 1 | candidate |
+
+The current candidate head on `m1/pr87-repair` is the only valid repair
+until independent gates approve. Any push invalidates prior evidence.
+
