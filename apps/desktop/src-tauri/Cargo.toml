@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "openstream-desktop"
 description = "OpenStream desktop composition root (Tauri 2). Deny-by-default shell; all authority remains in Rust crates."
 version.workspace = true
@@ -28,7 +28,7 @@ winreg = "=0.55.0"
 global-hotkey = "=0.8.0"
 # Windows focused-app identity source (issue #19): foreground-window process
 # image name only. Pinned exactly per repo policy.
-active-win-pos-rs = "=0.8.3"
+active-win-pos-rs = "=0.11.0"
 
 [dev-dependencies]
 tempfile = "=3.27.0"
