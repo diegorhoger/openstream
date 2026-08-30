@@ -1,16 +1,28 @@
 # Incident: PR #87 merged with dependency #25 unsatisfied (M2 #26)
 
-**Status:** Repaired by `m1/pr87-repair` (head: see git log of branch).
-**Date of incident:** 2026-08-27 (PR #87 merge SHA `e25c19f`).
-**Date of repair:** see latest commit on `m1/pr87-repair`.
+**Status:** Repair in progress; awaiting independent gates and human merge.
+**Date of incident:** 2026-08-27 (PR #87 source head `e25c19f`; squash merge commit on `main` = `6155457ee66659e2dc596f95b79624789cf33e33`).
 **Reporter:** OpenStream implementer + operator (Diego Rhoger).
+
+## PR #87 exact provenance (for the record)
+
+| field             | value                                      |
+|-------------------|--------------------------------------------|
+| PR number         | #87                                        |
+| PR source head    | `e25c19f2978915a9a8c6bb6602fc61b64ddaf430` (NOT the commit on `main`) |
+| PR base           | `4b57929465d306b2c1d21b6db121243d39865132` |
+| Squash merge commit on `main` | `6155457ee66659e2dc596f95b79624789cf33e33` (the head of `main` after merge) |
+| Merged at         | 2026-08-27T20:41:28Z                        |
+| Title             | "M2 issue26: simulator fixtures + discovery fixtures (F1-F8)" |
+
+The squash merge commit `6155457` is the one whose checks/PR-body/dependencies
+are evaluated; `e25c19f` is the source branch tip, not the commit on `main`.
 
 ## Summary
 
-PR #87 ("M2 issue26: simulator fixtures + discovery fixtures (F1-F8)") was
-merged into `main` at head `e25c19f2978915a9a8c6bb6602fc61b64ddaf430` on
-2026-08-27 while its declared dependency `M2 #25` (pairing / identity
-vectors) was still OPEN. The merge bypassed three required CI gates:
+PR #87 (source head `e25c19f`, squash-merged to `main` as `6155457`) was merged
+while its declared dependency `M2 #25` (pairing / identity vectors) was still
+OPEN. The merge bypassed three required CI gates:
 
 1. **Governance / provenance** — PR body did not carry the AGENT_* fields
    required by `.github/workflows/governance.yml`.
@@ -24,7 +36,7 @@ vectors) was still OPEN. The merge bypassed three required CI gates:
    `cd target/release/bundle` step did the same. PR #87 was merged
    despite a `package` CI run that ended in `failure`.
 
-## Dependency graph evidence
+## Dependency graph evidence (dependency breach UNRESOLVED)
 
 `docs/product/ROADMAP_GRAPH.tsv` row for issue #26:
 
@@ -32,9 +44,10 @@ vectors) was still OPEN. The merge bypassed three required CI gates:
 |------:|:---------:|:------------:|:-------------|
 | 26    | M2        | 24, 25       | simulators-discovery-fixtures |
 
-Issue #24 is closed; issue #25 is OPEN at the time of this incident.
-Therefore the merge of PR #87 was a `dependencies merged: yes #24, no #25`
-event and the body must reflect that truthfully.
+Issue #24 is closed; issue #25 is **OPEN**. Therefore the merge of PR #87
+was a `dependencies merged: yes #24, no #25` event, and the body must
+reflect that truthfully. This repair PR does **NOT** resolve the #25
+dependency breach and does **NOT** close issue #26.
 
 ## What this repair PR does
 
@@ -51,13 +64,24 @@ to restore repository + CI integrity:
   with `nullglob` disabled the literal globs were iterated as filenames)
   and replaces it with one `case` per format, anchored to
   `${PWD}/target/...` so the loop returns to the bundle root reliably.
-- Adds `set -euo pipefail`, `shopt -s nullglob`, and an explicit
-  `test -d "$root" || { echo FAIL...; exit 1; }` so a missing or
-  empty bundle directory fails closed instead of being swallowed by
-  `find ... 2>/dev/null || true`.
-- Adds a per-format `checksums.sha256` manifest plus a smoke-test
-  assertion that **at least one** platform artifact AND **at least
-  one** per-artifact `.sha256` are produced.
+- Requires each Linux format (`deb`, `rpm`, `appimage`) to be present
+  and non-empty; missing any one fails closed (no longer "fail only
+  when all three are absent").
+- Re-derives every `checksums.sha256` aggregate from the installer
+  files themselves via `sha256sum ... | tee -a checksums.sha256`, so
+  the aggregate hashes INSTALLER artifacts and not their sidecar
+  checksum files.
+- Strengthens the smoke test to require and verify one of each
+  platform format (EXE, DMG, DEB, RPM, AppImage) plus a matching
+  per-artifact `.sha256` sidecar; missing any expected format or
+  checksum fails closed.
+- Excludes `checksums.sha256` and `checksums-manifest.txt` from the
+  combined manifest so it lists only installer hashes.
+- Fixes the smoke-test verify loop: `sha256sum --check` is now called
+  with the basename after `cd` (the previous form used the full
+  relative path that no longer existed once the loop was in the
+  artifact directory).
+- Adds a durable in-tree record of the dependency breach.
 
 ## What this repair PR does NOT do
 
@@ -79,22 +103,27 @@ to restore repository + CI integrity:
 ## Hard stop preserved
 
 - This PR is opened as a **draft** and will not be merged autonomously.
-- After CI is green at the exact head, the four independent gates
-  (verifier, reviewer, security, evaluator) will be dispatched at that
-  exact head. Only after all four return APPROVE **and** a human
-  explicitly authorizes the merge will the merge occur.
+- The four independent gates (verifier, reviewer, security,
+  evaluator) have NOT been dispatched yet. They will be dispatched
+  only after the operator authorizes dispatch, and only at the
+  exact head that is currently green on every workflow. Only after
+  all four return APPROVE **and** a human explicitly authorizes the
+  merge will the merge occur.
 - The follow-up #25 PR and the #26 revalidation PR are sequenced and
   may not be merged out of order. M2 #30 (security suite) and M3+
   work is blocked on #26's valid restoration.
 
-## Repair PR revisions
+## Repair PR revisions (branch `m1/pr87-repair`, draft)
 
-| Head      | Change | Status |
-|----------:|:-------|:-------|
-| b8f2abf   | initial repair (governance/format only); workflow paths still wrong | superseded |
-| f3015cb   | fix macOS/Linux bundle paths to target-qualified dirs; fail-closed checksum generation; remove invalid `*.deb *.rpm *.AppImage 2>/dev/null` pattern; add per-format `checksums.sha256`; durable in-tree incident record | superseded |
-| <next>    | fix smoke-test checksum verification loop: `sha256sum --check` was called with the full relative path AFTER `cd` to the checksum's directory, so the path resolved to a non-existent file and the first per-artifact check always returned exit 1 | candidate |
+| Head      | Files changed                                                                                                                                                | Status |
+|----------:|:-------------------------------------------------------------------------------------------------------------------------------------------------------------|:-------|
+| b8f2abf   | rustfmt cleanup (4 Rust files) + `.github/workflows/package.yml` (minor): `crates/openstream-discovery/tests/discovery_fixtures.rs`, `crates/openstream-engine/src/fixtures/simulator_fixtures.rs`, `crates/openstream-engine/src/lib.rs`, `crates/openstream-engine/tests/simulator_fixtures.rs` | superseded |
+| f3015cb   | `.github/workflows/package.yml` (target-qualified bundle paths, fail-closed checksum gen, remove invalid glob); `docs/incidents/PR87-merge-breach.md` (initial incident record) | superseded |
+| 01deb91   | `.github/workflows/package.yml` (smoke-test verify loop uses basename after `cd`); `docs/incidents/PR87-merge-breach.md` (revision history table)              | superseded |
+| (next)    | `.github/workflows/package.yml` (aggregate `checksums.sha256` derives from installer files via `tee -a`; Linux fail-closed per format); `docs/incidents/PR87-merge-breach.md` (corrected PR #87 provenance, status to "Repair in progress; awaiting independent gates and human merge", new revision row) | candidate |
 
 The current candidate head on `m1/pr87-repair` is the only valid repair
 until independent gates approve. Any push invalidates prior evidence.
-
+The 4 Rust files in `b8f2abf` were authorized rustfmt-only repairs to
+make `cargo fmt --all -- --check` pass on PR #87's source tree; no
+semantic changes.

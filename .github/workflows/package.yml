@@ -92,12 +92,17 @@ jobs:
           cd "$bundle_dir"
           artifacts=(*.exe *.msi)
           test "${#artifacts[@]}" -gt 0 || { echo "FAIL: no .exe/.msi in $bundle_dir" >&2; exit 1; }
+          # Always (re)write the aggregate from the installer files themselves,
+          # never from sidecar files; this guarantees checksums.sha256 hashes
+          # installer artifacts and not their checksum sidecars.
+          : > checksums.sha256
           for f in "${artifacts[@]}"; do
-            sha256sum "$f" > "${f}.sha256"
+            sha256sum "$f" | tee -a checksums.sha256 > "${f}.sha256"
             echo "Checksum: $f"
             cat "${f}.sha256"
           done
-          test -f checksums.sha256 || sha256sum *.sha256 > checksums.sha256
+          echo "  Aggregate: checksums.sha256"
+          cat checksums.sha256
 
       - name: Upload Windows installer artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -173,12 +178,17 @@ jobs:
           cd "$bundle_dir"
           artifacts=(*.dmg)
           test "${#artifacts[@]}" -gt 0 || { echo "FAIL: no .dmg in $bundle_dir" >&2; exit 1; }
+          # Always (re)write the aggregate from the installer files themselves,
+          # never from sidecar files; this guarantees checksums.sha256 hashes
+          # installer artifacts and not their checksum sidecars.
+          : > checksums.sha256
           for f in "${artifacts[@]}"; do
-            shasum -a 256 "$f" > "${f}.sha256"
+            shasum -a 256 "$f" | tee -a checksums.sha256 > "${f}.sha256"
             echo "Checksum: $f"
             cat "${f}.sha256"
           done
-          test -f checksums.sha256 || shasum -a 256 *.sha256 > checksums.sha256
+          echo "  Aggregate: checksums.sha256"
+          cat checksums.sha256
 
       - name: Upload macOS DMG artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -265,35 +275,32 @@ jobs:
           shopt -s nullglob
           root="${PWD}/target/x86_64-unknown-linux-gnu/release/bundle"
           test -d "$root" || { echo "FAIL: missing $root" >&2; exit 1; }
+          # Each Linux format is REQUIRED. Missing any one fails closed,
+          # even if other formats succeed.
           formats=(deb rpm appimage)
-          declared=0
           for fmt in "${formats[@]}"; do
-            dir="$root/$fmt"
-            [ -d "$dir" ] || continue
             case "$fmt" in
               deb)      ext=*.deb      ;;
               rpm)      ext=*.rpm      ;;
               appimage) ext=*.AppImage ;;
             esac
+            dir="$root/$fmt"
+            test -d "$dir" || { echo "FAIL: missing $dir (required for $fmt)" >&2; exit 1; }
             cd "$dir"
             artifacts=($ext)
-            if [ "${#artifacts[@]}" -eq 0 ]; then
-              cd "$root"
-              continue
-            fi
+            test "${#artifacts[@]}" -gt 0 || { echo "FAIL: no $ext in $dir (required)" >&2; exit 1; }
+            # Always (re)write the per-format aggregate from the installer
+            # files themselves, never from sidecar files.
+            : > checksums.sha256
             for f in "${artifacts[@]}"; do
-              sha256sum "$f" > "${f}.sha256"
+              sha256sum "$f" | tee -a checksums.sha256 > "${f}.sha256"
               echo "Checksum: $f"
               cat "${f}.sha256"
-              declared=1
             done
-            [ -f checksums.sha256 ] || sha256sum *.sha256 > checksums.sha256
+            echo "  Aggregate ($fmt): checksums.sha256"
+            cat checksums.sha256
             cd "$root"
           done
-          if [ "$declared" -eq 0 ]; then
-            echo "FAIL: no .deb/.rpm/.AppImage produced under $root" >&2
-            exit 1
-          fi
 
       - name: Upload Linux DEB artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -340,12 +347,18 @@ jobs:
         run: |
           set -euo pipefail
           echo "=== Combined checksum manifest (v0.1.0-alpha) ===" > artifacts/checksums-manifest.txt
+          # Include only per-artifact sidecars (one <artifact>.sha256 per
+          # installer). Exclude aggregate checksums.sha256 and this manifest
+          # itself so the manifest lists ONLY installer hashes, never
+          # sidecar-of-sidecar aggregates.
           count=0
           while read -r cs; do
             cat "$cs" >> artifacts/checksums-manifest.txt
             echo "  Added $cs"
             count=$((count + 1))
-          done < <(find artifacts/ -name "*.sha256" -not -name "checksums-manifest.txt" | sort)
+          done < <(find artifacts/ -name "*.sha256" \
+            -not -name "checksums-manifest.txt" \
+            -not -name "checksums.sha256" | sort)
           test "$count" -gt 0 || { echo "FAIL: no per-artifact .sha256 files in artifacts/" >&2; exit 1; }
           cat artifacts/checksums-manifest.txt
 
@@ -369,6 +382,22 @@ jobs:
           find artifacts/ -type f | sort
 
           echo ""
+          echo "=== Required installer presence ==="
+          # Every expected platform format MUST be present in artifacts/.
+          # Each format is checked against ALL downloaded artifacts (an .exe
+          # uploaded with the linux-rpm artifact is still a valid .exe and
+          # counts toward the EXE requirement).
+          required_formats=("*.exe" "*.dmg" "*.deb" "*.rpm" "*.AppImage")
+          for pat in "${required_formats[@]}"; do
+            match=$(find artifacts/ -type f -name "$pat" -print -quit || true)
+            if [ -z "$match" ]; then
+              echo "FAIL: no $pat installer present in artifacts/" >&2
+              exit 1
+            fi
+            echo "  found $pat -> $match"
+          done
+
+          echo ""
           echo "=== Artifact sizes ==="
           size_count=0
           while read -r f; do
@@ -385,8 +414,26 @@ jobs:
           test "$size_count" -gt 0 || { echo "FAIL: no platform artifacts present in artifacts/" >&2; exit 1; }
 
           echo ""
+          echo "=== Required per-artifact checksum presence ==="
+          # Every installer artifact MUST have a matching per-artifact
+          # <artifact>.sha256 sidecar produced by the build job.
+          sidecar_count=0
+          while read -r f; do
+            if [ ! -f "$f.sha256" ]; then
+              echo "FAIL: missing per-artifact checksum for $f" >&2
+              exit 1
+            fi
+            sidecar_count=$((sidecar_count + 1))
+            echo "  ok $f.sha256"
+          done < <(find artifacts/ -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \))
+          test "$sidecar_count" -gt 0 || { echo "FAIL: no per-artifact checksums present" >&2; exit 1; }
+
+          echo ""
           echo "=== Checksum verification ==="
           verify_count=0
+          # Verify only per-artifact sidecars (one <artifact>.sha256 per
+          # installer). Exclude aggregate checksums.sha256 to avoid hashing
+          # checksum sidecars instead of installers.
           while read -r cs; do
             dir=$(dirname "$cs")
             cd "$dir"
@@ -402,7 +449,9 @@ jobs:
               fi
             fi
             cd - >/dev/null
-          done < <(find artifacts/ -name "*.sha256" -not -name "checksums-manifest.txt" -not -name "checksums.sha256")
+          done < <(find artifacts/ -name "*.sha256" \
+            -not -name "checksums-manifest.txt" \
+            -not -name "checksums.sha256" | sort)
           test "$verify_count" -gt 0 || { echo "FAIL: no per-artifact checksums verified" >&2; exit 1; }
 
           echo ""
