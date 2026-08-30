@@ -30,4 +30,4 @@ enigo = { version = "=0.6.1", default-features = false }
 # powershell.exe Start-Process route of the plain API). The legacy
 # command-interpreter path only exists behind the never-enabled `insecure`
 # feature.
-open = { version = "=5.4.1", features = ["shellexecute-on-windows"] }
+open = { version = "=5.4.2", features = ["shellexecute-on-windows"] }
