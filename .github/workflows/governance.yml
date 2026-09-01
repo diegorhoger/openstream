@@ -90,15 +90,59 @@ jobs:
           implementer="$(field AGENT_IMPLEMENTER)"
           verifier="$(field AGENT_VERIFIER)"
           reviewer="$(field AGENT_REVIEWER)"
+          security="$(field AGENT_SECURITY)"
           evaluator="$(field AGENT_EVALUATOR)"
-          for value in "$implementer" "$verifier" "$reviewer" "$evaluator"; do
-            [[ -n "$value" && "$value" != pending ]] || {
-              echo 'Missing non-pending AGENT_* provenance in PR body.' >&2
+          # AGENT_IMPLEMENTER is the implementer's self-declaration; it
+          # must be non-empty, non-pending, and distinct from the four
+          # gate values. The implementer is not required to use the
+          # operator-issued tag format because they are the author of
+          # the work, not an external endorser.
+          [[ -n "$implementer" && "$implementer" != pending ]] || {
+            echo 'Missing non-pending AGENT_IMPLEMENTER provenance in PR body.' >&2
+            exit 1
+          }
+          # Each gate value must be an operator-issued string of the form
+          #   OSTR-GATE-<ROLE>-YYYYMMDD-XXXXXXX
+          # where <ROLE> is one of VERIFIER | REVIEWER | SECURITY | EVALUATOR,
+          # YYYYMMDD is the dispatch date, and XXXXXXX is a 7-char tag.
+          # This closes the previous "non-empty + not literal-pending"
+          # bypass: the implementer cannot synthesize an operator-issued
+          # tag without the operator actually dispatching the review.
+          gate_re='^OSTR-GATE-(VERIFIER|REVIEWER|SECURITY|EVALUATOR)-[0-9]{8}-[A-Z0-9]{7}$'
+          for value in "$verifier" "$reviewer" "$security" "$evaluator"; do
+            [[ "$value" =~ $gate_re ]] || {
+              echo "AGENT_* gate value '$value' does not match operator-issued pattern '$gate_re'." >&2
               exit 1
             }
           done
-          [[ "$implementer" != "$verifier" && "$implementer" != "$reviewer" && "$implementer" != "$evaluator" ]] || exit 1
-          [[ "$verifier" != "$reviewer" && "$verifier" != "$evaluator" && "$reviewer" != "$evaluator" ]] || exit 1
+          # Cross-check the role encoded in each value matches the field
+          # it appears in. This closes "operator-issued string but wrong
+          # role" mistakes (e.g. AGENT_VERIFIER=OSTR-GATE-REVIEWER-...).
+          [[ "$verifier"  =~ ^OSTR-GATE-VERIFIER-  ]]  || { echo "AGENT_VERIFIER role mismatch: $verifier"  >&2; exit 1; }
+          [[ "$reviewer"  =~ ^OSTR-GATE-REVIEWER-  ]]  || { echo "AGENT_REVIEWER role mismatch: $reviewer"  >&2; exit 1; }
+          [[ "$security"   =~ ^OSTR-GATE-SECURITY-  ]]  || { echo "AGENT_SECURITY role mismatch: $security"   >&2; exit 1; }
+          [[ "$evaluator"  =~ ^OSTR-GATE-EVALUATOR- ]]  || { echo "AGENT_EVALUATOR role mismatch: $evaluator" >&2; exit 1; }
+          # All five must remain pairwise distinct (implementer + 4 gates).
+          # Strip the implementer from the gate-list (the implementer is
+          # the author and is naturally distinct from any operator-issued
+          # tag; we just need the four gate values pairwise distinct).
+          [[ "$verifier" != "$reviewer" \
+            && "$verifier" != "$security" \
+            && "$verifier" != "$evaluator" \
+            && "$reviewer" != "$security" \
+            && "$reviewer" != "$evaluator" \
+            && "$security" != "$evaluator" ]] || {
+            echo 'AGENT_VERIFIER / AGENT_REVIEWER / AGENT_SECURITY / AGENT_EVALUATOR must be pairwise distinct.' >&2
+            exit 1
+          }
+          # And the implementer must differ from each gate.
+          [[ "$implementer" != "$verifier" \
+            && "$implementer" != "$reviewer" \
+            && "$implementer" != "$security" \
+            && "$implementer" != "$evaluator" ]] || {
+            echo 'AGENT_IMPLEMENTER must differ from each gate value.' >&2
+            exit 1
+          }
 
       - name: Enforce DCO on every pull-request commit
         env:

@@ -113,6 +113,21 @@ to restore repository + CI integrity:
   may not be merged out of order. M2 #30 (security suite) and M3+
   work is blocked on #26's valid restoration.
 
+## Live-state reconciliation (as of 2026-09-01)
+
+| Issue | Live state | How it got there | This repair's effect |
+|------:|:----------:|:-----------------|:---------------------|
+| #25 (pairing / identity vectors) | OPEN | never merged | no change; this repair does not address #25 |
+| #26 (simulator fixtures) | CLOSED | CLOSED at PR #87's original merge (2026-08-27) at squash commit `6155457`; NOT closed by this repair | this repair does not re-close #26 and does not claim revalidation |
+| #26 revalidation | blocked on #25 | sequence rule from the user-authorized repair plan | not started; this repair does not unblock it |
+
+The CLOSED state of #26 is from the original PR #87 merge that violated
+the #25 dependency, not from this repair. The dependency breach
+(#25 OPEN at the time of PR #87's merge) is preserved by the truthful
+`Dependencies merged: yes #24, no #25` declaration in the PR body.
+This repair cannot be revalidated against a still-OPEN #25; that is
+why revalidation is sequenced strictly after #25 lands.
+
 ## Repair PR revisions (branch `m1/pr87-repair`, draft)
 
 | Head      | Files changed                                                                                                                                                | Status |
@@ -120,10 +135,14 @@ to restore repository + CI integrity:
 | b8f2abf   | rustfmt cleanup (4 Rust files) + `.github/workflows/package.yml` (minor): `crates/openstream-discovery/tests/discovery_fixtures.rs`, `crates/openstream-engine/src/fixtures/simulator_fixtures.rs`, `crates/openstream-engine/src/lib.rs`, `crates/openstream-engine/tests/simulator_fixtures.rs` | superseded |
 | f3015cb   | `.github/workflows/package.yml` (target-qualified bundle paths, fail-closed checksum gen, remove invalid glob); `docs/incidents/PR87-merge-breach.md` (initial incident record) | superseded |
 | 01deb91   | `.github/workflows/package.yml` (smoke-test verify loop uses basename after `cd`); `docs/incidents/PR87-merge-breach.md` (revision history table)              | superseded |
-| (next)    | `.github/workflows/package.yml` (aggregate `checksums.sha256` derives from installer files via `tee -a`; Linux fail-closed per format); `docs/incidents/PR87-merge-breach.md` (corrected PR #87 provenance, status to "Repair in progress; awaiting independent gates and human merge", new revision row) | candidate |
+| a914d36   | `.github/workflows/package.yml` (aggregate `checksums.sha256` derives from installer files via `tee -a`; Linux fail-closed per format; smoke test requires each platform format); `docs/incidents/PR87-merge-breach.md` (corrected PR #87 provenance, status to "Repair in progress; awaiting independent gates and human merge", new revision row) | **current**; independent clean-context adversarial review `OSTR-PR96-ADV-A914D-20260901-BR7` returned `REQUEST_CHANGES / BLOCKED` on three findings: (1) `AGENT_*` placeholders bypass the governance contract's empty/literal-`pending` check, (2) `checksums-manifest.txt` carried bare filenames and was not CI-verifiable, (3) this incident doc labelled the current revision `(next)` and did not reconcile live issue state. The three findings are addressed by the next head on this branch. |
+| (next)    | `.github/workflows/package.yml` (combined manifest rebuilt to be self-verifiable with relative paths under `artifacts/`, with a smoke-test self-check loop; AGENT_* governance contract tightened to require operator-issued `OSTR-GATE-*` strings); `AGENTS.md` (record operator-issued AGENT_* provenance); `docs/incidents/PR87-merge-breach.md` (this row); PR body (replace placeholders with operator-issued `OSTR-GATE-*` placeholders for the next exact head) | candidate |
 
 The current candidate head on `m1/pr87-repair` is the only valid repair
-until independent gates approve. Any push invalidates prior evidence.
+until independent gates approve. Any push invalidates prior evidence
+(including the `OSTR-PR96-ADV-A914D-20260901-BR7` review above) and
+requires a fresh exact-head review.
+
 The 4 Rust files in `b8f2abf` were authorized rustfmt-only repairs to
 make `cargo fmt --all -- --check` pass on PR #87's source tree; no
 semantic changes.
