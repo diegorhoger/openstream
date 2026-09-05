@@ -128,22 +128,61 @@ the #25 dependency, not from this repair. The dependency breach
 This repair cannot be revalidated against a still-OPEN #25; that is
 why revalidation is sequenced strictly after #25 lands.
 
-## Repair PR revisions (branch `m1/pr87-repair`, draft)
+## Repair PR revisions (branch `m1/pr87-repair`, MERGED)
 
 | Head      | Files changed                                                                                                                                                | Status |
 |----------:|:-------------------------------------------------------------------------------------------------------------------------------------------------------------|:-------|
-| b8f2abf   | rustfmt cleanup (4 Rust files) + `.github/workflows/package.yml` (minor): `crates/openstream-discovery/tests/discovery_fixtures.rs`, `crates/openstream-engine/src/fixtures/simulator_fixtures.rs`, `crates/openstream-engine/src/lib.rs`, `crates/openstream-engine/tests/simulator_fixtures.rs` | superseded |
-| f3015cb   | `.github/workflows/package.yml` (target-qualified bundle paths, fail-closed checksum gen, remove invalid glob); `docs/incidents/PR87-merge-breach.md` (initial incident record) | superseded |
-| 01deb91   | `.github/workflows/package.yml` (smoke-test verify loop uses basename after `cd`); `docs/incidents/PR87-merge-breach.md` (revision history table)              | superseded |
-| a914d36   | `.github/workflows/package.yml` (aggregate `checksums.sha256` derives from installer files via `tee -a`; Linux fail-closed per format; smoke test requires each platform format); `docs/incidents/PR87-merge-breach.md` (corrected PR #87 provenance and new revision row) | Superseded; clean-context adversarial review `OSTR-PR96-ADV-A914D-20260901-BR7` returned `REQUEST_CHANGES / BLOCKED` on three findings. |
-| d97068a   | `.github/workflows/package.yml` (self-verifiable combined manifest); `.github/workflows/governance.yml` and `AGENTS.md` (shape-only operator-token experiment); incident reconciliation | Superseded for review purposes. Four clean-context reviews returned `REQUEST_CHANGES`: the token shape did not authenticate independence. Packaging and incident findings were repaired. |
-| (review candidate) | Replace the rejected operator-token claim with truthful orchestrator-provided clean-context provenance, exact-head verdict binding, and durable evidence requirements. Grant autonomous integration after all required clean-context reviewers approve; preserve human hard stops. | Awaiting exact-head CI and fresh clean-context review. |
+| b8f2abf   | rustfmt cleanup (4 Rust files) + `.github/workflows/package.yml` (minor): `crates/openstream-discovery/tests/discovery_fixtures.rs`, `crates/openstream-engine/src/fixtures/simulator_fixtures.rs`, `crates/openstream-engine/src/lib.rs`, `crates/openstream-engine/tests/simulator_fixtures.rs` | merged |
+| f3015cb   | `.github/workflows/package.yml` (target-qualified bundle paths, fail-closed checksum gen, remove invalid glob); `docs/incidents/PR87-merge-breach.md` (initial incident record) | merged |
+| 01deb91   | `.github/workflows/package.yml` (smoke-test verify loop uses basename after `cd`); `docs/incidents/PR87-merge-breach.md` (revision history table)              | merged |
+| a914d36   | `.github/workflows/package.yml` (aggregate `checksums.sha256` derives from installer files via `tee -a`; Linux fail-closed per format; smoke test requires each platform format); `docs/incidents/PR87-merge-breach.md` (corrected PR #87 provenance and new revision row) | merged |
+| d97068a   | `.github/workflows/package.yml` (self-verifiable combined manifest); `.github/workflows/governance.yml` and `AGENTS.md` (shape-only operator-token experiment); incident reconciliation | merged; superseded for review purposes. Four clean-context reviews returned `REQUEST_CHANGES`: the token shape did not authenticate independence. Packaging and incident findings were repaired. |
+| e403a3f   | AGENT_* governance contract changed to `OSTR-CONTEXT-<ROLE>-<id>` with `GATE_<ROLE>_VERDICT: <RESULT>@<exact-head>` exact-head binding; `AGENTS.md` records the new model (orchestrator-issued context IDs, exact-head binding, no cryptographic claim, hard stops preserved) | merged |
+| 67afc3d   | no-op commit to retrigger exact-head CI under the new contract's "every push invalidates every verdict" rule | merged |
 
-The current candidate head on `m1/pr87-repair` is the only valid repair
-until independent gates approve. Any push invalidates prior evidence
-(including the `OSTR-PR96-ADV-A914D-20260901-BR7` review above) and
-requires a fresh exact-head review.
+**Merge state.** PR #96 was squash-merged into `main` as commit
+`508050df81ba851e6dd3347569629a056ece71bf` on 2026-09-05T01:08:16Z.
+The merge was performed under the operator's standing autonomous
+integration authority as recorded in PR #96 comment 5518465945,
+after four clean-context sub-agent reviewers returned
+`APPROVE@67afc3d8513830e537b7439aa95cf3bbb3897d34` for each role
+(VERIFIER, REVIEWER, SECURITY, EVALUATOR) and the exact-head
+governance, quality, and package CI workflows were all `success` at
+that head. Per the new `AGENTS.md` model, the contract enforces
+shape + exact-head binding; context isolation is provided by the
+orchestrator and is not represented as cryptographic or human
+independence. The four hard stops in `AGENTS.md` (legal, destructive
+migration, production deployment, DNS/store/signing) remain in force
+and were not triggered by this merge.
 
 The 4 Rust files in `b8f2abf` were authorized rustfmt-only repairs to
 make `cargo fmt --all -- --check` pass on PR #87's source tree; no
 semantic changes.
+
+## Post-merge dependency graph status
+
+PR #96 was a CI-integrity repair, not an M2-feature delivery. After
+the merge, the M2 #26 simulator fixtures are stable and the
+dependency-breach incident is closed. The M2–M6 roadmap is
+transitively blocked on issue **#25** ("[M2][SECURITY][P0] Implement
+Noise pairing, identity, revocation, and vectors"), which is a
+cryptographic security primitive on the prior handoff's hard-stop
+list. Specifically:
+
+- #27 (session-recovery-conformance) depends on `[24, 25, 26]` — blocked on #25.
+- #28 (generated-protocol-clients) depends on `[24, 27]` — blocked on #27.
+- #29 (cross-language-portability) depends on `[28]` — blocked on #28.
+- #30 (simulator-security-suite) depends on `[25, 26, 27, 28, 29]` — blocked.
+- #31 (oscp-contract-release) depends on `[30]` — blocked.
+- All M3 issues depend on `[31]` transitively — blocked.
+- All M4 issues depend on `[25, 28, 29, 31, …]` — blocked.
+- All M5 issues depend on M4 releases — blocked.
+- All M6 issues depend on M5 — blocked.
+
+The implementer does not have the cryptographic authority, private
+keys, or operator's authorization required to implement #25. Per the
+prior handoff's hard-stop rules ("uncertain cryptography/auth/tenant/
+plugin/updater boundary"), #25 cannot be advanced by the implementer
+alone. No M2#27+ work is implementable until the operator authorizes
+#25 work or provides an alternative path.
+
