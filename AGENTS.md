@@ -20,9 +20,31 @@ GitHub issues, pull requests, reviews, checks, and exact commit SHAs are authori
 
 Planner, Implementer, Verifier, Reviewer, and Evaluator are separate contexts. Add Security for networking, authentication, secrets, OS permissions, remote control, plugins, billing, updates, signing, privacy, or tenant isolation. Add Release for artifacts, versioning, signing, stores, or deployment.
 
+### AGENT_* provenance (clean-context reviews)
+
+Verifier, Reviewer, Security, and Evaluator must be separate clean-context
+review agents. They receive the specification, acceptance criteria, relevant
+repository state, exact head, and required commands, but not the implementer's
+conclusions. Each independently inspects the change and returns `APPROVE`,
+`REPAIR`, or `HARD_STOP` with reproducible evidence.
+
+The PR body records each review context as
+`OSTR-CONTEXT-<ROLE>-<CONTEXT_ID>` and each verdict as
+`GATE_<ROLE>_VERDICT: <RESULT>@<40-hex-head>`. Context identifiers must be
+distinct. A durable PR comment must contain the complete verdict and evidence
+for every required role. The machine check validates syntax, role separation,
+and exact-head binding; it cannot prove context isolation. Context isolation is
+provided by the orchestrator and must never be represented as cryptographic or
+human independence.
+
+The implementer may record returned context identifiers and verdicts but may
+not author the review conclusions. Pending values fail closed. Every push
+invalidates all verdicts; PR-body edits do not invalidate a verdict when the
+recorded head remains the current PR head.
+
 ## Completion
 
-Continue repair until acceptance criteria pass, required checks are green on the exact head, threads are resolved, and an independent evaluator posts the machine-readable review gate. Merge is always human-controlled until a separately approved policy says otherwise.
+Continue repair until acceptance criteria pass, required checks are green on the exact head, threads are resolved, and every required clean-context reviewer returns `APPROVE` with durable evidence. When the repository owner has granted standing autonomous integration authority, an approved exact head may be merged without an additional routine human confirmation. Human authority remains mandatory for the hard stops below.
 
 ## Hard stop
 

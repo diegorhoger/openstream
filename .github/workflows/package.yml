@@ -6,6 +6,12 @@ name: package
 # Linux DEB/RPM/AppImage) with versioned artifacts (v0.1.0-alpha),
 # CI test signing framework connection, checksum generation.
 # Production signing is BLOCKED per signing/signing.md and AGENTS.md.
+#
+# Path convention (Tauri 2.x): when `cargo tauri build --target <triple>` is
+# used, all bundles are emitted under
+# `target/<triple>/release/bundle/<format>/`. The host default `target/release/`
+# tree is NOT used. Paths below are pinned to the actual triple that the
+# `cargo tauri build` step above each block uses.
 
 on:
   pull_request:
@@ -73,20 +79,30 @@ jobs:
 
       - name: List installer artifacts
         run: |
+          set -euo pipefail
           echo "=== Windows artifacts ==="
-          find target/x86_64-pc-windows-msvc/release/bundle -name "*.exe" -o -name "*.msi" 2>/dev/null || \
-            find target/x86_64-pc-windows-msvc/release/bundle -type f -name "*.exe" -type f -name "*.msi"
+          find target/x86_64-pc-windows-msvc/release/bundle -type f \( -name "*.exe" -o -name "*.msi" \) 2>/dev/null
 
       - name: Generate checksums
         run: |
-          cd target/x86_64-pc-windows-msvc/release/bundle/nsis
-          for f in *.exe; do
-            if [ -f "$f" ]; then
-              sha256sum "$f" > "${f}.sha256"
-              echo "Checksum: $f"
-              cat "${f}.sha256"
-            fi
+          set -euo pipefail
+          shopt -s nullglob
+          bundle_dir="${PWD}/target/x86_64-pc-windows-msvc/release/bundle/nsis"
+          test -d "$bundle_dir" || { echo "FAIL: missing $bundle_dir" >&2; exit 1; }
+          cd "$bundle_dir"
+          artifacts=(*.exe *.msi)
+          test "${#artifacts[@]}" -gt 0 || { echo "FAIL: no .exe/.msi in $bundle_dir" >&2; exit 1; }
+          # Always (re)write the aggregate from the installer files themselves,
+          # never from sidecar files; this guarantees checksums.sha256 hashes
+          # installer artifacts and not their checksum sidecars.
+          : > checksums.sha256
+          for f in "${artifacts[@]}"; do
+            sha256sum "$f" | tee -a checksums.sha256 > "${f}.sha256"
+            echo "Checksum: $f"
+            cat "${f}.sha256"
           done
+          echo "  Aggregate: checksums.sha256"
+          cat checksums.sha256
 
       - name: Upload Windows installer artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -94,6 +110,7 @@ jobs:
           name: openstream-installer-windows-v0.1.0-alpha-${{ github.event.pull_request.head.sha }}
           path: |
             target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            target/x86_64-pc-windows-msvc/release/bundle/nsis/*.msi
             target/x86_64-pc-windows-msvc/release/bundle/nsis/*.sha256
           retention-days: 7
           if-no-files-found: error
@@ -148,27 +165,38 @@ jobs:
 
       - name: List DMG artifact
         run: |
+          set -euo pipefail
           echo "=== macOS artifacts ==="
-          find target/release/bundle/dmg -name "*.dmg" 2>/dev/null || true
+          find target/aarch64-apple-darwin/release/bundle/dmg -type f -name "*.dmg" 2>/dev/null
 
       - name: Generate checksums
         run: |
-          cd target/release/bundle/dmg
-          for f in *.dmg; do
-            if [ -f "$f" ]; then
-              shasum -a 256 "$f" > "${f}.sha256"
-              echo "Checksum: $f"
-              cat "${f}.sha256"
-            fi
+          set -euo pipefail
+          shopt -s nullglob
+          bundle_dir="${PWD}/target/aarch64-apple-darwin/release/bundle/dmg"
+          test -d "$bundle_dir" || { echo "FAIL: missing $bundle_dir" >&2; exit 1; }
+          cd "$bundle_dir"
+          artifacts=(*.dmg)
+          test "${#artifacts[@]}" -gt 0 || { echo "FAIL: no .dmg in $bundle_dir" >&2; exit 1; }
+          # Always (re)write the aggregate from the installer files themselves,
+          # never from sidecar files; this guarantees checksums.sha256 hashes
+          # installer artifacts and not their checksum sidecars.
+          : > checksums.sha256
+          for f in "${artifacts[@]}"; do
+            shasum -a 256 "$f" | tee -a checksums.sha256 > "${f}.sha256"
+            echo "Checksum: $f"
+            cat "${f}.sha256"
           done
+          echo "  Aggregate: checksums.sha256"
+          cat checksums.sha256
 
       - name: Upload macOS DMG artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: openstream-installer-macos-v0.1.0-alpha-${{ github.event.pull_request.head.sha }}
           path: |
-            target/release/bundle/dmg/*.dmg
-            target/release/bundle/dmg/*.sha256
+            target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            target/aarch64-apple-darwin/release/bundle/dmg/*.sha256
           retention-days: 7
           if-no-files-found: error
 
@@ -237,31 +265,48 @@ jobs:
 
       - name: List Linux artifacts
         run: |
+          set -euo pipefail
           echo "=== Linux artifacts ==="
-          find target/release/bundle -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" 2>/dev/null || true
+          find target/x86_64-unknown-linux-gnu/release/bundle -type f \( -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \) 2>/dev/null
 
       - name: Generate checksums
         run: |
-          cd target/release/bundle
-          for dir in deb rpm appimage; do
-            if [ -d "$dir" ]; then
-              cd "$dir"
-              for f in *.deb *.rpm *.AppImage 2>/dev/null; do
-                if [ -f "$f" ]; then
-                  sha256sum "$f" > "${f}.sha256"
-                  echo "Checksum: $f"
-                  cat "${f}.sha256"
-                fi
-              done
-              cd ..
-            fi
+          set -euo pipefail
+          shopt -s nullglob
+          root="${PWD}/target/x86_64-unknown-linux-gnu/release/bundle"
+          test -d "$root" || { echo "FAIL: missing $root" >&2; exit 1; }
+          # Each Linux format is REQUIRED. Missing any one fails closed,
+          # even if other formats succeed.
+          formats=(deb rpm appimage)
+          for fmt in "${formats[@]}"; do
+            case "$fmt" in
+              deb)      ext=*.deb      ;;
+              rpm)      ext=*.rpm      ;;
+              appimage) ext=*.AppImage ;;
+            esac
+            dir="$root/$fmt"
+            test -d "$dir" || { echo "FAIL: missing $dir (required for $fmt)" >&2; exit 1; }
+            cd "$dir"
+            artifacts=($ext)
+            test "${#artifacts[@]}" -gt 0 || { echo "FAIL: no $ext in $dir (required)" >&2; exit 1; }
+            # Always (re)write the per-format aggregate from the installer
+            # files themselves, never from sidecar files.
+            : > checksums.sha256
+            for f in "${artifacts[@]}"; do
+              sha256sum "$f" | tee -a checksums.sha256 > "${f}.sha256"
+              echo "Checksum: $f"
+              cat "${f}.sha256"
+            done
+            echo "  Aggregate ($fmt): checksums.sha256"
+            cat checksums.sha256
+            cd "$root"
           done
 
       - name: Upload Linux DEB artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: openstream-installer-linux-deb-v0.1.0-alpha-${{ github.event.pull_request.head.sha }}
-          path: target/release/bundle/deb/*.deb
+          path: target/x86_64-unknown-linux-gnu/release/bundle/deb
           retention-days: 7
           if-no-files-found: error
 
@@ -269,7 +314,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: openstream-installer-linux-rpm-v0.1.0-alpha-${{ github.event.pull_request.head.sha }}
-          path: target/release/bundle/rpm/*.rpm
+          path: target/x86_64-unknown-linux-gnu/release/bundle/rpm
           retention-days: 7
           if-no-files-found: error
 
@@ -277,7 +322,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: openstream-installer-linux-appimage-v0.1.0-alpha-${{ github.event.pull_request.head.sha }}
-          path: target/release/bundle/appimage/*.AppImage
+          path: target/x86_64-unknown-linux-gnu/release/bundle/appimage
           retention-days: 7
           if-no-files-found: error
 
@@ -300,11 +345,40 @@ jobs:
 
       - name: Generate combined checksum manifest
         run: |
-          echo "=== Combined checksum manifest (v0.1.0-alpha) ===" > artifacts/checksums-manifest.txt
-          find artifacts/ -name "*.sha256" | sort | while read cs; do
-            cat "$cs" >> artifacts/checksums-manifest.txt
-            echo "  Added $cs"
-          done
+          set -euo pipefail
+          # Build a combined manifest that is SELF-VERIFIABLE from
+          # artifacts/. Every line is "<hash>  <relative-path-under-artifacts/>"
+          # so the smoke test can `cd artifacts && sha256sum -c checksums-manifest.txt`
+          # (or walk the lines) without any prior knowledge of which
+          # subdirectory each artifact lives in.
+          #
+          # Header line is informational and must NOT match the
+          # "<hash><space><space><path>" format sha256sum emits.
+          {
+            echo "# Combined checksum manifest (v0.1.0-alpha)"
+            echo "# Format: <sha256>  <path-relative-to-artifacts/>"
+            echo "# Generated by: .github/workflows/package.yml @ exact head"
+            echo
+          } > artifacts/checksums-manifest.txt
+          count=0
+          while read -r artifact; do
+            # Skip non-artifact files and any checksum sidecar (the
+            # installer must already exist next to its sidecar).
+            case "$artifact" in
+              *.exe|*.msi|*.dmg|*.deb|*.rpm|*.AppImage) ;;
+              *) continue ;;
+            esac
+            [ -f "$artifact.sha256" ] || { echo "FAIL: missing per-artifact checksum for $artifact" >&2; exit 1; }
+            # The per-artifact sidecar is "<hash><space><space><basename>".
+            # Rewrite the line so the path component is the full
+            # subdirectory-relative path under artifacts/, and rewrite
+            # the line into the "<hash>  <path>" form.
+            hash=$(awk 'NR==1{print $1}' "$artifact.sha256")
+            rel=${artifact#artifacts/}
+            printf '%s  %s\n' "$hash" "$rel" >> artifacts/checksums-manifest.txt
+            count=$((count + 1))
+          done < <(find artifacts/ -type f | sort)
+          test "$count" -gt 0 || { echo "FAIL: no installer artifacts found in artifacts/" >&2; exit 1; }
           cat artifacts/checksums-manifest.txt
 
       - name: Verify test signing framework connection
@@ -327,8 +401,25 @@ jobs:
           find artifacts/ -type f | sort
 
           echo ""
+          echo "=== Required installer presence ==="
+          # Every expected platform format MUST be present in artifacts/.
+          # Each format is checked against ALL downloaded artifacts (an .exe
+          # uploaded with the linux-rpm artifact is still a valid .exe and
+          # counts toward the EXE requirement).
+          required_formats=("*.exe" "*.dmg" "*.deb" "*.rpm" "*.AppImage")
+          for pat in "${required_formats[@]}"; do
+            match=$(find artifacts/ -type f -name "$pat" -print -quit || true)
+            if [ -z "$match" ]; then
+              echo "FAIL: no $pat installer present in artifacts/" >&2
+              exit 1
+            fi
+            echo "  found $pat -> $match"
+          done
+
+          echo ""
           echo "=== Artifact sizes ==="
-          find artifacts/ -type f -name "*.exe" -o -name "*.dmg" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" | while read f; do
+          size_count=0
+          while read -r f; do
             if [ -f "$f" ]; then
               size=$(stat --format=%s "$f" 2>/dev/null || stat -f%z "$f" 2>/dev/null)
               echo "  $(basename "$f"): ${size} bytes"
@@ -336,26 +427,80 @@ jobs:
                 echo "  ERROR: Artifact too small (< 1KB)"
                 exit 1
               fi
+              size_count=$((size_count + 1))
             fi
-          done
+          done < <(find artifacts/ -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \))
+          test "$size_count" -gt 0 || { echo "FAIL: no platform artifacts present in artifacts/" >&2; exit 1; }
+
+          echo ""
+          echo "=== Required per-artifact checksum presence ==="
+          # Every installer artifact MUST have a matching per-artifact
+          # <artifact>.sha256 sidecar produced by the build job.
+          sidecar_count=0
+          while read -r f; do
+            if [ ! -f "$f.sha256" ]; then
+              echo "FAIL: missing per-artifact checksum for $f" >&2
+              exit 1
+            fi
+            sidecar_count=$((sidecar_count + 1))
+            echo "  ok $f.sha256"
+          done < <(find artifacts/ -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \))
+          test "$sidecar_count" -gt 0 || { echo "FAIL: no per-artifact checksums present" >&2; exit 1; }
 
           echo ""
           echo "=== Checksum verification ==="
-          find artifacts/ -name "*.sha256" | while read cs; do
+          verify_count=0
+          # Verify only per-artifact sidecars (one <artifact>.sha256 per
+          # installer). Exclude aggregate checksums.sha256 to avoid hashing
+          # checksum sidecars instead of installers.
+          while read -r cs; do
             dir=$(dirname "$cs")
             cd "$dir"
             base=$(basename "$cs" .sha256)
             if [ -f "$base" ]; then
               echo "Verifying $base..."
-              if sha256sum --check --quiet "$cs" 2>/dev/null || shasum -a 256 -c "$cs" 2>/dev/null; then
+              if sha256sum --check --quiet "$base.sha256" 2>/dev/null || shasum -a 256 -c "$base.sha256" 2>/dev/null; then
                 echo "  PASS"
+                verify_count=$((verify_count + 1))
               else
                 echo "  FAIL"
                 exit 1
               fi
             fi
-            cd -
-          done
+            cd - >/dev/null
+          done < <(find artifacts/ -name "*.sha256" \
+            -not -name "checksums-manifest.txt" \
+            -not -name "checksums.sha256" | sort)
+          test "$verify_count" -gt 0 || { echo "FAIL: no per-artifact checksums verified" >&2; exit 1; }
+
+          echo ""
+          echo "=== Combined-manifest self-verification ==="
+          # The combined manifest is the human-readable record. It MUST
+          # also be self-verifiable: every "<hash>  <path>" line in the
+          # manifest must match the file at <path> in artifacts/. Lines
+          # starting with "#" or empty lines are skipped.
+          manifest_lines=0
+          while IFS= read -r line; do
+            case "$line" in
+              "#"*|"") continue ;;
+            esac
+            expected_hash=$(awk '{print $1}' <<<"$line")
+            rel_path=$(awk '{print $2}' <<<"$line")
+            [ -n "$rel_path" ] || { echo "FAIL: malformed manifest line: $line" >&2; exit 1; }
+            full_path="artifacts/$rel_path"
+            [ -f "$full_path" ] || { echo "FAIL: manifest references missing file: $full_path" >&2; exit 1; }
+            actual_hash=$(sha256sum "$full_path" | awk '{print $1}')
+            if [ "$expected_hash" = "$actual_hash" ]; then
+              echo "  manifest ok: $rel_path"
+            else
+              echo "FAIL: manifest hash mismatch for $rel_path" >&2
+              echo "  expected: $expected_hash" >&2
+              echo "  actual:   $actual_hash" >&2
+              exit 1
+            fi
+            manifest_lines=$((manifest_lines + 1))
+          done < artifacts/checksums-manifest.txt
+          test "$manifest_lines" -gt 0 || { echo "FAIL: combined manifest has no checksum lines" >&2; exit 1; }
 
           echo ""
           echo "All smoke tests passed."
