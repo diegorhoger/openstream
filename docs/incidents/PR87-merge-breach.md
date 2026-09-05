@@ -212,14 +212,26 @@ block on #25. PR #97:
   `Err("PROTOCOL_MAJOR_MISMATCH")` for wrong and backwards major, and
   `Ok(())` for the correct major.
 
+PR #98 (https://github.com/diegorhoger/openstream/pull/98) was merged
+on 2026-09-05T15:48:46Z at commit `c1ce9e30b7ababe8343f7900f3c60ffb9dfba99c`
+as a second bounded engineering-hygiene change. PR #98 added three
+unit tests to `openstream-testkit::load_fixture` (the only public
+function in that crate, which had been previously untested):
+
+- `load_fixture_reads_existing_file`: round-trips a temp file's bytes.
+- `load_fixture_missing_file_errors`: a missing path returns an error.
+- `load_fixture_accepts_borrowed_path`: confirms `AsRef<Path>` works
+  with `&Path` (not just `PathBuf`).
+
 The four `OSTR-GATE-*-20260902-*` operator-issued IDs on `d97068a…`
 (PR #96 comment 5510817381) and the four orchestrator-issued clean-context
-sub-agent verdicts on `e403a3f…` / `67afc3d…` (PR #96 body) and on
-`66c1b55…` (PR #97 body) are durable on the record. The new governance
-contract model is the operative gate: shape + exact-head binding,
-context isolation from the orchestrator, no cryptographic or human
-independence claim. Per AGENTS.md, an approved exact head may be
-merged under standing autonomous-integration authority once the
-four `GATE_<ROLE>_VERDICT: APPROVE@<head>` lines are recorded and
+sub-agent verdicts on `e403a3f…` / `67afc3d…` (PR #96 body),
+`66c1b55…` (PR #97 body), and `ea7332b…` (PR #98 body) are durable
+on the record. The new governance contract model is the operative
+gate: shape + exact-head binding, context isolation from the
+orchestrator, no cryptographic or human independence claim. Per
+AGENTS.md, an approved exact head may be merged under standing
+autonomous-integration authority once the four
+`GATE_<ROLE>_VERDICT: APPROVE@<head>` lines are recorded and
 exact-head CI is green.
 
