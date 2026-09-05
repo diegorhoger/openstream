@@ -186,3 +186,40 @@ plugin/updater boundary"), #25 cannot be advanced by the implementer
 alone. No M2#27+ work is implementable until the operator authorizes
 #25 work or provides an alternative path.
 
+## Bounded engineering hygiene (post-PR-#96)
+
+PR #97 (https://github.com/diegorhoger/openstream/pull/97) was merged
+on 2026-09-05T13:31:59Z at commit `524fb6b8d835c455f4b5140f0dc25c69a1af7f92`
+as a bounded engineering-hygiene change on the already-merged codec
+contract tests. PR #97 did NOT close any issue, did NOT advance any
+roadmap item, did NOT modify any tracked source, dependency, fixture,
+workflow, AGENTS.md, or release artifact. It is the only autonomous
+merge after PR #96 and represents the only "next task" available to
+the implementer given the M2#27+ roadmap's full transitive
+block on #25. PR #97:
+
+- added `contract_engine_protocol_minor_matches_fixtures` (asserts
+  `PROTOCOL_MINOR` matches the value carried in the F1–F8 fixtures);
+- strengthened `contract_uuid_format_matches_engine_identity` to verify
+  the 8-4-4-4-12 group shape, hex-only charset, version nibble = 7,
+  and variant nibble in {8, 9, a, b} per RFC 4122 (was: only length);
+- added `contract_uuid_format_rejects_malformed` (asserts
+  `UuidV7::new` panics with `"invalid UUIDv7 format"` on a
+  non-UUIDv7 string);
+- replaced the tautological `regression_error_code_sequence_regression`
+  (which asserted only `assert_eq!("SEQUENCE_REGRESSION",
+  "SEQUENCE_REGRESSION")`) with a real S1 contract test that asserts
+  `Err("PROTOCOL_MAJOR_MISMATCH")` for wrong and backwards major, and
+  `Ok(())` for the correct major.
+
+The four `OSTR-GATE-*-20260902-*` operator-issued IDs on `d97068a…`
+(PR #96 comment 5510817381) and the four orchestrator-issued clean-context
+sub-agent verdicts on `e403a3f…` / `67afc3d…` (PR #96 body) and on
+`66c1b55…` (PR #97 body) are durable on the record. The new governance
+contract model is the operative gate: shape + exact-head binding,
+context isolation from the orchestrator, no cryptographic or human
+independence claim. Per AGENTS.md, an approved exact head may be
+merged under standing autonomous-integration authority once the
+four `GATE_<ROLE>_VERDICT: APPROVE@<head>` lines are recorded and
+exact-head CI is green.
+
