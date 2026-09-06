@@ -226,7 +226,8 @@ function in that crate, which had been previously untested):
 The four `OSTR-GATE-*-20260902-*` operator-issued IDs on `d97068a…`
 (PR #96 comment 5510817381) and the four orchestrator-issued clean-context
 sub-agent verdicts on `e403a3f…` / `67afc3d…` (PR #96 body),
-`66c1b55…` (PR #97 body), and `ea7332b…` (PR #98 body) are durable
+`66c1b55…` (PR #97 body), `ea7332b…` (PR #98 body), and
+`3f94df4…` (PR #99 body) are durable
 on the record. The new governance contract model is the operative
 gate: shape + exact-head binding, context isolation from the
 orchestrator, no cryptographic or human independence claim. Per
@@ -234,4 +235,32 @@ AGENTS.md, an approved exact head may be merged under standing
 autonomous-integration authority once the four
 `GATE_<ROLE>_VERDICT: APPROVE@<head>` lines are recorded and
 exact-head CI is green.
+
+## Safe Dependabot set (post-PR-#99)
+
+Per the operator's 2026-09-06 standing orders, the implementer was
+authorized to merge safe Dependabot PRs only — pure GitHub Actions
+pins and non-crypto / non-network / non-process-execution crate bumps —
+and to open at most one more pure-docs PR. Boundary Dependabot PRs
+(`sha2`, `tungstenite`, `open`, `active-win-pos-rs`, `uuid`) remain
+open and untouched.
+
+PR #88 (https://github.com/diegorhoger/openstream/pull/88) was
+squash-merged on 2026-09-06 at `ba1d2cfe637efbfc75e723a918295b216cf41ac4`
+as the first safe-Dependabot merge. It pins
+`EmbarkStudios/cargo-deny-action` from `c3bbe7e4… # v2.1.1` to
+`3c634983… # v2.1.1` (same commented version, SHA-pin advance to the
+upstream v2.1.1 tag head "Fix use-git-cli deprecation (#116)"),
+merging current `main` (`84d139c`) into the Dependabot branch with no
+conflicts. PR #88 closed no issue and advanced no roadmap item.
+
+Notable repair within PR #88: the first reviewed head `c980c85c…` carried
+a merge commit with **no** DCO `Signed-off-by` trailer, so the
+`repository-contract` DCO gate failed. The implementer amended the merge
+to add `Signed-off-by: Diego Rhoger <diegorhoger@gmail.com>`, producing
+new head `074b4864853a9b88025f95814c680820e3b3d1db`, re-pushed
+(force-with-lease), and re-dispatched the four clean-context gates at
+that exact head. All four returned `APPROVE@074b486…` (VERIFIER /
+REVIEWER / SECURITY / EVALUATOR) and `repository-contract`, `quality`,
+and `package` CI were all `success` at `074b486` before the merge.
 
