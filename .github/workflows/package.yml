@@ -52,7 +52,7 @@ jobs:
           }
 
       - name: Install pnpm
-        uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           package_json_file: apps/desktop/ui/package.json
 
@@ -138,7 +138,7 @@ jobs:
           }
 
       - name: Install pnpm
-        uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           package_json_file: apps/desktop/ui/package.json
 
@@ -232,7 +232,7 @@ jobs:
             libayatana-appindicator3-dev librsvg2-dev libxdo-dev
 
       - name: Install pnpm
-        uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           package_json_file: apps/desktop/ui/package.json
 
