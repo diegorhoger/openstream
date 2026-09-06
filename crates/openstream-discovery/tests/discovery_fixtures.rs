@@ -16,7 +16,9 @@ fn discovery_f1_encoding_is_approved_mdns() {
 fn discovery_f2_negotiation_has_permission_denied() {
     use openstream_discovery::fixtures::fixture_f2_discovery_negotiation_matrix;
     let matrix = fixture_f2_discovery_negotiation_matrix();
-    let denied = matrix.iter().any(|(_, label)| label.contains("permission_denied") || label.contains("manual_fallback"));
+    let denied = matrix
+        .iter()
+        .any(|(_, label)| label.contains("permission_denied") || label.contains("manual_fallback"));
     assert!(denied);
 }
 

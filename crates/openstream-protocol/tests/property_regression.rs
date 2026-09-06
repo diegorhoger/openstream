@@ -53,7 +53,32 @@ fn regression_malformed_envelope_empty_body() {
 
 #[test]
 fn regression_error_code_sequence_regression() {
-    assert_eq!("SEQUENCE_REGRESSION", "SEQUENCE_REGRESSION");
+    // Regression: PROTOCOL_MAJOR_MISMATCH must be returned by S1 when the
+    // envelope advertises a major version other than PROTOCOL_MAJOR (1).
+    // The prior version was a tautological no-op that tested nothing.
+    let mut env = fixture_f1_hello();
+    // Wrong major: S1 must reject.
+    env.protocol_major = PROTOCOL_MAJOR + 1;
+    match env.validate_s1() {
+        Err("PROTOCOL_MAJOR_MISMATCH") => {}
+        other => panic!(
+            "S1 must reject wrong major with PROTOCOL_MAJOR_MISMATCH; got {:?}",
+            other
+        ),
+    }
+    // Backwards major: S1 must also reject.
+    let mut env_back = fixture_f1_hello();
+    env_back.protocol_major = PROTOCOL_MAJOR.saturating_sub(1);
+    match env_back.validate_s1() {
+        Err("PROTOCOL_MAJOR_MISMATCH") => {}
+        other => panic!(
+            "S1 must reject a backwards major with PROTOCOL_MAJOR_MISMATCH; got {:?}",
+            other
+        ),
+    }
+    // Correct major: S1 passes (assuming the body is non-empty for non-heartbeat).
+    let env_ok = fixture_f1_hello();
+    assert!(env_ok.validate_s1().is_ok());
 }
 
 #[test]

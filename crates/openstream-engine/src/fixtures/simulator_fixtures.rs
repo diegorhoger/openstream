@@ -14,10 +14,7 @@ pub fn fixture_f1_simulator_clock_start() -> FakeClock {
 
 /// F2: Negotiation matrix — simulated network adapter available/unavailable.
 pub fn fixture_f2_simulator_network_negotiation() -> Vec<(bool, &'static str)> {
-    vec![
-        (true, "adapter_available"),
-        (false, "adapter_unavailable"),
-    ]
+    vec![(true, "adapter_available"), (false, "adapter_unavailable")]
 }
 
 /// F3: Replay/duplication — deterministic duplicate key.
