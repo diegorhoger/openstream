@@ -264,3 +264,25 @@ that exact head. All four returned `APPROVE@074b486…` (VERIFIER /
 REVIEWER / SECURITY / EVALUATOR) and `repository-contract`, `quality`,
 and `package` CI were all `success` at `074b486` before the merge.
 
+PR #89 (https://github.com/diegorhoger/openstream/pull/89) was
+squash-merged on 2026-09-06 at `7d3fb7b9d1e2b00888a54228bbfed9b222c70e4b`
+as the second safe-Dependabot merge. It pins `actions/download-artifact`
+from `95815c38… # v4.2.1` to `3e5f45b2… # v8.0.1` (first-party
+`actions/*` supply-chain pin advance to the upstream v8.0.1 tag head,
+"Add regression tests for CJK characters (#471)") in the
+`.github/workflows/package.yml` smoke-tests Download step. The merge
+declared `Issue: #22`, `Dependencies merged: yes #6, yes #16, yes #21`
+(all closed), merging `main` (`b7a8dcd`) with a signed `--no-ff` merge
+head `67f56d819d30433a2025ff55162cc55c3fa16e70`. All four clean-context
+gates returned `APPROVE@67f56d8…`; `repository-contract`, `quality`, and
+`package` (including `smoke tests (installer outputs)`, which directly
+exercises the bumped action) were all `success` before merge.
+
+Behavioral note (recorded, assessed non-risk): download-artifact v8
+defaults `digest-mismatch` to `error` and no longer auto-unzips
+non-zipped artifacts. Both are supply-chain security tightenings. This
+repo uploads with `actions/upload-artifact@v7` (zipped), so the
+smoke-tests download path is semantically unchanged; no new network/auth
+surface. The green `package` + `smoke tests` run at `67f56d8` is the
+operational confirmation.
+
