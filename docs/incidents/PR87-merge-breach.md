@@ -286,3 +286,32 @@ smoke-tests download path is semantically unchanged; no new network/auth
 surface. The green `package` + `smoke tests` run at `67f56d8` is the
 operational confirmation.
 
+PR #90 (https://github.com/diegorhoger/openstream/pull/90) was
+squash-merged on 2026-09-06 at `f1391fcd631614fe3baa22853cb8c39abc40f7fd`
+as the third and final safe-Dependabot merge. It normalizes five
+`pnpm/action-setup` pins from the `v6.0.10` ANNOTATED TAG OBJECT SHA
+(`ff378ebe…`) to its DEREFERENCED COMMIT SHA (`0977fd99…`), same version
+`# v6.0.10`, across `.github/workflows/package.yml` (3) and
+`.github/workflows/quality.yml` (2). Declared `Issue: #6`,
+`Dependencies merged: yes #2, yes #4` (all closed), merging `main`
+(`5d5f55d`) with a signed `--no-ff` merge head
+`4825e1e4869817a102f8d7d1d852544f1837306a`. All four clean-context
+gates returned `APPROVE@4825e1e…`; `repository-contract`, `quality`, and
+`package` (incl. smoke tests) were all `success` before merge.
+
+Upstream nuance (recorded): the `v6.0.10` annotated tag object is
+`ff378ebe`, which dereferences to commit `0977fd99`. Dependabot advanced
+the pin from the tag object to the underlying immutable commit — the
+more-secure pin form (a mutable tag object can be repointed; the
+dereferenced commit cannot). Verified first-party `pnpm/action-setup`,
+not a fork.
+
+## Safe-Dependabot set complete
+
+All three operator-authorized safe Dependabot PRs (#88, #89, #90) are
+merged. The remaining Dependabot PRs for `sha2` (#95), `tungstenite`
+(#93), `open` (#92), `active-win-pos-rs` (#94), and `uuid` (#91) are
+boundary (crypto / network / process-execution) and remain OPEN and
+untouched. No tag moves, releases, signing, or operator-owned untracked
+files were touched.
+
