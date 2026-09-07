@@ -22,14 +22,14 @@ No agent self-approves. No failed dependency, unresolved thread, missing DCO, mi
 - CI checks out and asserts the exact PR head.
 - The machine-readable roadmap graph is validated for complete ordered issue coverage and backward-only dependencies.
 - PR bodies carry distinct stable context IDs for implementer, verifier, reviewer, and evaluator.
-- PR comments carry exactly one machine-readable evidence record per required role, bound to the body context and exact head, with commands and results.
+- Repository-owner PR comments relay exactly one machine-readable evidence record per required role, bound to the body context and exact head, with commands and results. Comment mutation republishes a SHA-bound evidence status.
 - Every PR commit is checked for a DCO `Signed-off-by` trailer.
 - Product paths reject Python without treating absent directories as success-by-error.
 - Hosted service implementation is rejected from the public repository.
 
-## Human and CODEOWNERS boundary
+## Merge and CODEOWNERS boundary
 
-The current repository has one eligible owner. Requiring that same CODEOWNER to approve a PR they authored would deadlock GitHub review. CODEOWNERS is therefore advisory until a second eligible non-author maintainer is configured. Human merge, expected-head confirmation, zero unresolved threads, and required checks remain mandatory. A future branch-protection change requiring CODEOWNER approval is itself a human governance decision.
+The current repository has one eligible owner. Requiring that same CODEOWNER to approve a PR they authored would deadlock GitHub review. CODEOWNERS is therefore advisory until a second eligible non-author maintainer is configured. Expected-head confirmation, zero unresolved threads, required checks, and durable evidence remain mandatory. Standing owner authority permits orchestrator integration without routine human confirmation; hard stops still require human authority. A future branch-protection change requiring CODEOWNER approval is itself a human governance decision.
 
 ## Decisions
 

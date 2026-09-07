@@ -154,6 +154,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BODY: ${{ github.event.pull_request.body }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          TRUSTED_EVIDENCE_ACTOR: ${{ github.repository_owner }}
         run: node scripts/check-review-evidence.mjs
 
       - name: Test durable review-evidence validator

@@ -233,9 +233,9 @@ required by `AGENTS.md`. The governance contract model is the operative
 gate: shape + exact-head binding, context isolation from the
 orchestrator, no cryptographic or human independence claim. Per
 AGENTS.md, an approved exact head may be merged under standing
-autonomous-integration authority once the four
-`GATE_<ROLE>_VERDICT: APPROVE@<head>` lines are recorded and
-exact-head CI is green.
+autonomous-integration authority only when the four
+`GATE_<ROLE>_VERDICT: APPROVE@<head>` lines have matching durable
+review-evidence records and exact-head CI is green.
 
 ## Safe Dependabot set (post-PR-#99)
 

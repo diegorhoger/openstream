@@ -10,9 +10,10 @@ function bodyField(body, name) {
   return match?.[1]?.trim() ?? null;
 }
 
-export function parseEvidence(comments) {
+export function parseEvidence(comments, trustedActor) {
   const records = [];
   for (const comment of comments) {
+    if (comment.user?.login !== trustedActor) continue;
     for (const match of (comment.body ?? '').matchAll(MARKER)) {
       try {
         records.push({ ...JSON.parse(match[1]), comment_id: comment.id });
@@ -24,9 +25,9 @@ export function parseEvidence(comments) {
   return records;
 }
 
-export function validateEvidence({ body, comments, expectedHead }) {
+export function validateEvidence({ body, comments, expectedHead, trustedActor }) {
   const problems = [];
-  const records = parseEvidence(comments);
+  const records = parseEvidence(comments, trustedActor);
   const contexts = new Set();
 
   for (const role of ROLES) {
@@ -40,17 +41,20 @@ export function validateEvidence({ body, comments, expectedHead }) {
     if (verdict !== `APPROVE@${expectedHead}`) {
       problems.push(`GATE_${role}_VERDICT must be APPROVE@${expectedHead}`);
     }
-    const matches = records.filter(
-      (record) => record.role === role && record.context === context && record.head === expectedHead && record.verdict === 'APPROVE',
-    );
-    if (matches.length !== 1) {
-      problems.push(`${role} requires exactly one matching evidence record; found ${matches.length}`);
+    const roleRecords = records.filter((record) => record.role === role);
+    if (roleRecords.length !== 1) {
+      problems.push(`${role} requires exactly one evidence record; found ${roleRecords.length}`);
       continue;
     }
-    const record = matches[0];
-    if (!Array.isArray(record.commands) || record.commands.length === 0) problems.push(`${role} evidence must contain at least one command`);
-    if (!Array.isArray(record.results) || record.results.length === 0) problems.push(`${role} evidence must contain at least one result`);
-    if (typeof record.summary !== 'string' || record.summary.trim().length < 20) problems.push(`${role} evidence summary is missing or too short`);
+    const record = roleRecords[0];
+    if (record.context !== context) problems.push(`${role} evidence context does not match AGENT_${role}`);
+    if (record.head !== expectedHead) problems.push(`${role} evidence is not bound to ${expectedHead}`);
+    if (record.verdict !== 'APPROVE') problems.push(`${role} evidence verdict must be APPROVE`);
+    const validList = (value) => Array.isArray(value) && value.length >= 1 && value.length <= 64
+      && value.every((item) => typeof item === 'string' && item.trim().length > 0 && item.length <= 2000);
+    if (!validList(record.commands)) problems.push(`${role} evidence commands must contain 1-64 nonblank strings of at most 2000 characters`);
+    if (!validList(record.results)) problems.push(`${role} evidence results must contain 1-64 nonblank strings of at most 2000 characters`);
+    if (typeof record.summary !== 'string' || record.summary.trim().length < 20 || record.summary.length > 8000) problems.push(`${role} evidence summary must contain 20-8000 characters`);
   }
 
   if (contexts.size !== ROLES.length) problems.push('review contexts must be pairwise distinct');
@@ -76,8 +80,9 @@ async function main() {
   const repo = process.env.GH_REPO;
   const prNumber = process.env.PR_NUMBER;
   const token = process.env.GH_TOKEN;
-  if (!body || !expectedHead || !repo || !prNumber || !token) throw new Error('PR_BODY, EXPECTED_HEAD, GH_REPO, PR_NUMBER, and GH_TOKEN are required');
-  const result = validateEvidence({ body, comments: await fetchAllIssueComments({ repo, prNumber, token }), expectedHead });
+  const trustedActor = process.env.TRUSTED_EVIDENCE_ACTOR;
+  if (!body || !expectedHead || !repo || !prNumber || !token || !trustedActor) throw new Error('PR_BODY, EXPECTED_HEAD, GH_REPO, PR_NUMBER, GH_TOKEN, and TRUSTED_EVIDENCE_ACTOR are required');
+  const result = validateEvidence({ body, comments: await fetchAllIssueComments({ repo, prNumber, token }), expectedHead, trustedActor });
   if (!result.ok) {
     for (const problem of result.problems) console.error(problem);
     process.exit(1);
