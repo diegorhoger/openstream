@@ -31,9 +31,11 @@ conclusions. Each independently inspects the change and returns `APPROVE`,
 The PR body records each review context as
 `OSTR-CONTEXT-<ROLE>-<CONTEXT_ID>` and each verdict as
 `GATE_<ROLE>_VERDICT: <RESULT>@<40-hex-head>`. Context identifiers must be
-distinct. A durable PR comment must contain the complete verdict and evidence
-for every required role. The machine check validates syntax, role separation,
-and exact-head binding; it cannot prove context isolation. Context isolation is
+distinct. A durable PR comment must contain exactly one machine-readable v1
+evidence record for every required role, including the role, matching context,
+exact head, `APPROVE` verdict, summary, commands, and results. The machine check
+validates these records, role separation, and exact-head binding; it cannot
+prove context isolation. Context isolation is
 provided by the orchestrator and must never be represented as cryptographic or
 human independence.
 

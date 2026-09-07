@@ -11,17 +11,18 @@ OpenStream uses a serial merge lane with parallel analysis. GitHub is the durabl
 5. Independently verify success, failure, denial, and applicable crash windows.
 6. Review the exact-head diff; add Security/Release contexts when triggered.
 7. Remediate; every push invalidates earlier verification and review.
-8. Post the machine-readable exact-head review gate.
-9. A human reviews and merges with expected-head protection.
+8. Post one machine-readable durable exact-head evidence record for every required review role.
+9. Merge only after exact-head CI and every required clean-context review approve. Standing owner authority may replace routine human confirmation; hard stops still require human authority.
 10. Update dependents and continue immediately.
 
-No agent self-approves or autonomously merges. No failed dependency, unresolved thread, missing DCO, or failing exact-head check may be bypassed.
+No agent self-approves. No failed dependency, unresolved thread, missing DCO, missing durable review evidence, or failing exact-head check may be bypassed.
 
 ## Enforceable evidence
 
 - CI checks out and asserts the exact PR head.
 - The machine-readable roadmap graph is validated for complete ordered issue coverage and backward-only dependencies.
 - PR bodies carry distinct stable context IDs for implementer, verifier, reviewer, and evaluator.
+- PR comments carry exactly one machine-readable evidence record per required role, bound to the body context and exact head, with commands and results.
 - Every PR commit is checked for a DCO `Signed-off-by` trailer.
 - Product paths reject Python without treating absent directories as success-by-error.
 - Hosted service implementation is rejected from the public repository.

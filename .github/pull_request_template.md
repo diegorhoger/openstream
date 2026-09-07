@@ -62,3 +62,12 @@ AGENT_VERIFIER: pending
 AGENT_REVIEWER: pending
 AGENT_SECURITY: n/a
 AGENT_EVALUATOR: pending
+
+GATE_VERIFIER_VERDICT: PENDING@<exact-head>
+GATE_REVIEWER_VERDICT: PENDING@<exact-head>
+GATE_SECURITY_VERDICT: PENDING@<exact-head>
+GATE_EVALUATOR_VERDICT: PENDING@<exact-head>
+
+Each required role must also post exactly one `openstream-review-evidence:v1`
+HTML-comment record containing role, matching context, exact head, verdict,
+summary, commands, and results.

@@ -6,6 +6,8 @@ on:
 
 permissions:
   contents: read
+  issues: read
+  pull-requests: read
 
 jobs:
   repository-contract:
@@ -144,6 +146,18 @@ jobs:
               exit 1
             }
           done
+
+      - name: Require durable exact-head review evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/check-review-evidence.mjs
+
+      - name: Test durable review-evidence validator
+        run: node --test scripts/check-review-evidence.test.mjs
 
       - name: Enforce DCO on every pull-request commit
         env:
