@@ -61,3 +61,8 @@ test('rejects duplicate governance fields in the PR body', () => {
   const duplicateBody = `${body}\nAGENT_VERIFIER: OSTR-CONTEXT-VERIFIER-conflict`;
   assert.match(validateEvidence({ body: duplicateBody, comments: ROLES.map((role) => comment(role)), expectedHead: head, trustedActor }).problems.join('\n'), /AGENT_VERIFIER must appear exactly once; found 2/);
 });
+test('rejects duplicate review contexts across roles', () => {
+  const duplicateContextBody = body.replace(contexts.REVIEWER, contexts.VERIFIER);
+  const comments = ROLES.map((role) => comment(role, role === 'REVIEWER' ? { context: contexts.VERIFIER } : {}));
+  assert.match(validateEvidence({ body: duplicateContextBody, comments, expectedHead: head, trustedActor }).problems.join('\n'), /review contexts must be pairwise distinct/);
+});
