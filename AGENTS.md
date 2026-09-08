@@ -44,6 +44,11 @@ Context isolation is
 provided by the orchestrator and must never be represented as cryptographic or
 human independence.
 
+The trusted `pull_request_target` workflow becomes authoritative only after it
+exists on the default branch. Its introducing PR therefore requires a one-time,
+explicitly recorded bootstrap exception plus clean-context review; PR-head code
+must not publish the authoritative status.
+
 The implementer may record returned context identifiers and verdicts but may
 not author the review conclusions. Pending values fail closed. Every push
 invalidates all verdicts; PR-body edits do not invalidate a verdict when the

@@ -27,6 +27,11 @@ No agent self-approves. No failed dependency, unresolved thread, missing DCO, mi
 - Product paths reject Python without treating absent directories as success-by-error.
 - Hosted service implementation is rejected from the public repository.
 
+The PR that first installs the trusted default-branch evidence workflow cannot
+be validated by that not-yet-installed workflow. It requires a one-time
+documented bootstrap exception and clean-context approval. After integration,
+no PR-head copy of the validator is authoritative.
+
 ## Merge and CODEOWNERS boundary
 
 The current repository has one eligible owner. Requiring that same CODEOWNER to approve a PR they authored would deadlock GitHub review. CODEOWNERS is therefore advisory until a second eligible non-author maintainer is configured. Expected-head confirmation, zero unresolved threads, required checks, and durable evidence remain mandatory. Standing owner authority permits orchestrator integration without routine human confirmation; hard stops still require human authority. A future branch-protection change requiring CODEOWNER approval is itself a human governance decision.

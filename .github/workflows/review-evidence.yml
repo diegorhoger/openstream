@@ -13,7 +13,7 @@ permissions:
   statuses: write
 
 concurrency:
-  group: review-evidence-${{ github.event.issue.number }}
+  group: review-evidence-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:

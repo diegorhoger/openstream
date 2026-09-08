@@ -8,8 +8,8 @@ const contexts = Object.fromEntries(ROLES.map((role) => [role, `OSTR-CONTEXT-${r
 const body = ROLES.map((role) => `AGENT_${role}: ${contexts[role]}\nGATE_${role}_VERDICT: APPROVE@${head}`).join('\n');
 
 function comment(role, overrides = {}) {
-  const record = { role, context: contexts[role], head, verdict: 'APPROVE', summary: `Independent ${role} review found the exact head acceptable.`, commands: ['git diff --check base..head'], results: ['exit 0'], ...overrides };
-  return { id: role, user: { login: trustedActor }, body: `<!-- openstream-review-evidence:v1\n${JSON.stringify(record)}\n-->` };
+  const record = { role, context: contexts[role], head, verdict: 'APPROVE', summary: `Independent ${role} review found the exact head acceptable.`, commands: [`git diff --check base..head # ${role}`], results: [`exit 0; ${role} verification PASS`], ...overrides };
+  return { id: role, expected_role: role, user: { login: trustedActor }, body: `<!-- openstream-review-evidence:v1\n${JSON.stringify(record)}\n-->` };
 }
 
 const validate = (comments) => validateEvidence({ body, comments, expectedHead: head, trustedActor });
@@ -18,7 +18,11 @@ test('accepts one complete exact-head record per role', () => assert.deepEqual(v
 test('rejects missing role evidence', () => assert.match(validate(ROLES.slice(1).map((role) => comment(role))).problems.join('\n'), /VERIFIER requires exactly one/));
 test('rejects stale-head evidence', () => assert.match(validate(ROLES.map((role) => comment(role, role === 'REVIEWER' ? { head: 'b'.repeat(40) } : {}))).problems.join('\n'), /REVIEWER evidence is not bound/));
 test('rejects non-approve evidence', () => assert.match(validate(ROLES.map((role) => comment(role, role === 'SECURITY' ? { verdict: 'REPAIR' } : {}))).problems.join('\n'), /SECURITY evidence verdict/));
-test('rejects duplicate role evidence even when one record is stale', () => assert.match(validate([...ROLES.map((role) => comment(role)), comment('EVALUATOR', { head: 'b'.repeat(40) })]).problems.join('\n'), /EVALUATOR requires exactly one evidence record; found 2/));
+test('rejects multiple markers in one role relay comment', () => {
+  const comments = ROLES.map((role) => comment(role));
+  comments[3].body += comments[3].body;
+  assert.match(validate(comments).problems.join('\n'), /EVALUATOR relay comment requires exactly one evidence marker; found 2/);
+});
 test('rejects incomplete commands and results', () => {
   const problems = validate(ROLES.map((role) => comment(role, role === 'VERIFIER' ? { commands: [null], results: [' '] } : {}))).problems.join('\n');
   assert.match(problems, /commands must contain/);
@@ -36,5 +40,19 @@ test('rejects placeholder evidence and malformed context identifiers', () => {
 test('ignores evidence markers from untrusted commenters', () => {
   const untrusted = comment('VERIFIER');
   untrusted.user.login = 'untrusted-user';
-  assert.match(validate([untrusted, ...ROLES.slice(1).map((role) => comment(role))]).problems.join('\n'), /VERIFIER requires exactly one evidence record; found 0/);
+  assert.match(validate([untrusted, ...ROLES.slice(1).map((role) => comment(role))]).problems.join('\n'), /VERIFIER requires exactly one trusted owner relay comment/);
+});
+test('binds every named relay comment to its declared role', () => {
+  const comments = ROLES.map((role) => comment(role));
+  comments[0].expected_role = 'SECURITY';
+  comments[2].expected_role = 'VERIFIER';
+  const problems = validate(comments).problems.join('\n');
+  assert.match(problems, /VERIFIER relay comment contains evidence for SECURITY/);
+  assert.match(problems, /SECURITY relay comment contains evidence for VERIFIER/);
+});
+test('rejects no-op and cross-role duplicated evidence', () => {
+  const comments = ROLES.map((role) => comment(role, { commands: ['echo hello'], results: ['exit 0'] }));
+  const problems = validate(comments).problems.join('\n');
+  assert.match(problems, /no-op placeholders/);
+  assert.match(problems, /duplicates another role/);
 });
