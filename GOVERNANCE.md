@@ -9,7 +9,7 @@ OpenStream uses a serial merge lane with parallel analysis. GitHub is the durabl
 3. Plan in the issue, create an issue branch, and open a draft PR.
 4. Implement within scope.
 5. Independently verify success, failure, denial, and applicable crash windows.
-6. Review the exact-head diff; add Security/Release contexts when triggered.
+6. Review the exact-head diff with mandatory Security; add a Release context when triggered.
 7. Remediate; every push invalidates earlier verification and review.
 8. Post one machine-readable durable exact-head evidence record for every required review role.
 9. Merge only after exact-head CI and every required clean-context review approve. Standing owner authority may replace routine human confirmation; hard stops still require human authority.

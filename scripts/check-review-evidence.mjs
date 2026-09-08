@@ -6,6 +6,13 @@ export const ROLES = ['VERIFIER', 'REVIEWER', 'SECURITY', 'EVALUATOR'];
 const MARKER = /<!--\s*openstream-review-evidence:v1\s*([\s\S]*?)-->/g;
 const CONTEXT_SUFFIX = '[A-Za-z0-9_-]+';
 
+export function normalizeEvidenceIds(values) {
+  if (values.some((id) => !/^[1-9]\d*$/.test(id ?? ''))) throw new Error('evidence comment IDs must be canonical positive integers without leading zeroes');
+  const normalized = values.map((id) => BigInt(id).toString());
+  if (new Set(normalized).size !== normalized.length) throw new Error('evidence comment IDs must be numerically distinct');
+  return normalized;
+}
+
 function bodyValues(body, name) {
   return [...body.matchAll(new RegExp(`^[-*]?[ \\t]*${name}:[ \\t]*(.+?)[ \\t]*$`, 'gmi'))].map((match) => match[1].trim());
 }
@@ -69,7 +76,7 @@ export function validateEvidence({ body, comments, expectedHead, trustedActor })
       && record.commands.every((item) => typeof item === 'string' && item.trim().length >= 10 && item.length <= 2000
         && /^(?:\.?\.?\/)?[A-Za-z0-9_.-]+(?:\s+\S.*)$/.test(item.trim()) && !/^(?:echo|printf|true|false|bash\s+-c|sh\s+-c)\b/i.test(item.trim()));
     const resultsValid = Array.isArray(record.results) && record.results.length === record.commands?.length
-      && record.results.every((item) => item && Number.isInteger(item.exit_code)
+      && record.results.every((item) => item && item.exit_code === 0
         && /^sha256:[0-9a-f]{64}$/.test(item.output_digest)
         && typeof item.assertion === 'string' && item.assertion.trim().length >= 20 && item.assertion.length <= 2000);
     if (!commandsValid) problems.push(`${role} evidence commands must contain 1-64 executable, non-noop strings of 10-2000 characters`);
@@ -89,10 +96,7 @@ async function fetchEvidenceComments({ repo, prNumber, token, body, trustedActor
   const comments = [];
   const idFields = ROLES.map((role) => bodyValues(body, `EVIDENCE_${role}_COMMENT`));
   if (idFields.some((values) => values.length !== 1)) throw new Error('each EVIDENCE_<ROLE>_COMMENT field must appear exactly once');
-  const ids = idFields.map(([id]) => id);
-  if (ids.some((id) => !/^\d+$/.test(id ?? '')) || new Set(ids).size !== ROLES.length) {
-    throw new Error('four distinct numeric EVIDENCE_<ROLE>_COMMENT fields are required');
-  }
+  const ids = normalizeEvidenceIds(idFields.map(([id]) => id));
   for (let index = 0; index < ids.length; index += 1) {
     const id = ids[index];
     const role = ROLES[index];
@@ -100,6 +104,7 @@ async function fetchEvidenceComments({ repo, prNumber, token, body, trustedActor
     const response = await fetch(url, { headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28' } });
     if (!response.ok) throw new Error(`GitHub evidence comment ${id} request failed: ${response.status}`);
     const comment = await response.json();
+    if (BigInt(comment.id).toString() !== id) throw new Error(`GitHub returned comment ${comment.id} for requested evidence comment ${id}`);
     if (comment.issue_url !== `https://api.github.com/repos/${repo}/issues/${prNumber}`) throw new Error(`evidence comment ${id} does not belong to PR #${prNumber}`);
     if (comment.user?.login !== trustedActor) throw new Error(`evidence comment ${id} is not authored by the trusted owner`);
     comments.push({ ...comment, expected_role: role });

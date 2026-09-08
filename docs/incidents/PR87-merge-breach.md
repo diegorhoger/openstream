@@ -324,3 +324,15 @@ merged. The remaining Dependabot PRs for `sha2` (#95), `tungstenite`
 boundary (crypto / network / process-execution) and remain OPEN and
 untouched. No tag moves, releases, signing, or operator-owned untracked
 files were touched.
+
+## PR #101 trusted-gate bootstrap exception
+
+PR #101 introduces the first authoritative default-branch
+`pull_request_target` review-evidence workflow. GitHub cannot execute a newly
+introduced trusted workflow for its own PR until that workflow exists on
+`main`. Under the repository owner's standing autonomous-integration authority,
+PR #101 therefore has a one-time bootstrap exception from its own
+`governance/review-evidence` status only. The exception does not waive DCO,
+existing exact-head CI, four fresh clean-context approvals, owner-relayed
+evidence comments, or unresolved findings. It expires when PR #101 is
+integrated and cannot be reused by later PRs.

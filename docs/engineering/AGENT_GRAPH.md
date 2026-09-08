@@ -23,7 +23,7 @@
 
 ## State machine
 
-`queued -> planned -> implementing -> verifying -> reviewing -> remediating -> review_gate -> human_merge -> completed`
+`queued -> planned -> implementing -> verifying -> reviewing -> remediating -> review_gate -> integrating -> completed`
 
 Any new commit moves verification/review/review_gate back to `verifying`. A hard stop moves work to `needs_decision` and blocks downstream mutation.
 
@@ -47,26 +47,22 @@ BLOCKERS:
 NEXT:
 ```
 
-## Review gate
+## Review evidence gate
 
-```text
-<!-- openstream-review-gate:v1 -->
-REVIEW_GATE: READY
-PR: #<number>
-ISSUE: #<number>
-BASE: <40-character SHA>
-HEAD: <40-character SHA>
-RISK: low|medium|high|critical
-REQUIRED_CHECKS: PASS
-ACCEPTANCE_CRITERIA: PASS
-UNRESOLVED_THREADS: 0
-IMPLEMENTER_IS_REVIEWER: false
-SECURITY_REVIEW: PASS|N/A
-MIGRATION_REVIEW: PASS|N/A
-AUTOMERGE: HUMAN_REQUIRED
-```
+The PR body names distinct clean contexts and exact-head verdicts for
+VERIFIER, REVIEWER, SECURITY, and EVALUATOR, plus four canonical positive
+integer `EVIDENCE_<ROLE>_COMMENT` IDs. Each owner-relayed comment contains one
+`openstream-review-evidence:v1` JSON record with its role, context, head,
+`APPROVE` verdict, substantive summary, commands, structured zero-exit results
+and SHA-256 output/report digests. The trusted default-branch workflow fetches
+those comments directly and publishes `governance/review-evidence` for the
+exact head.
 
-The gate is invalid when base/head changes, a check fails, approval is dismissed, a new unresolved thread exists, dependency state changes, risk changes, or the PR gains migration/permission/public-API/billing/signing/deployment impact.
+The gate is invalid when base/head or named evidence changes, a check fails, a
+new unresolved thread exists, dependency state changes, risk changes, or the PR
+gains migration/permission/public-API/billing/signing/deployment impact.
+Standing owner authority permits integration without routine human approval;
+the hard stops below still require human authority.
 
 ## Hard stops
 

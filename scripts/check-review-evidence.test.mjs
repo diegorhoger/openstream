@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ROLES, validateEvidence } from './check-review-evidence.mjs';
+import { ROLES, normalizeEvidenceIds, validateEvidence } from './check-review-evidence.mjs';
 
 const head = 'a'.repeat(40);
 const trustedActor = 'repository-owner';
@@ -65,4 +65,13 @@ test('rejects duplicate review contexts across roles', () => {
   const duplicateContextBody = body.replace(contexts.REVIEWER, contexts.VERIFIER);
   const comments = ROLES.map((role) => comment(role, role === 'REVIEWER' ? { context: contexts.VERIFIER } : {}));
   assert.match(validateEvidence({ body: duplicateContextBody, comments, expectedHead: head, trustedActor }).problems.join('\n'), /review contexts must be pairwise distinct/);
+});
+test('normalizes comment IDs and rejects leading-zero aliases', () => {
+  assert.deepEqual(normalizeEvidenceIds(['1', '2', '3', '4']), ['1', '2', '3', '4']);
+  assert.throws(() => normalizeEvidenceIds(['1', '01', '001', '0001']), /canonical positive integers/);
+});
+test('rejects nonzero command results for an approval', () => {
+  const comments = ROLES.map((role) => comment(role));
+  comments[0] = comment('VERIFIER', { results: [{ exit_code: 1, output_digest: `sha256:${'1'.repeat(64)}`, assertion: 'VERIFIER command failed and cannot support approval.' }] });
+  assert.match(validate(comments).problems.join('\n'), /results must correspond/);
 });

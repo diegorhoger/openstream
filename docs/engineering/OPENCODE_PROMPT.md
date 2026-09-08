@@ -4,7 +4,7 @@ Operate `diegorhoger/openstream` as a dependency-aware graph engineering system.
 
 GitHub issues, pull requests, reviews, checks, and exact SHAs are the source of truth. Resume the oldest open PR first. If none exists, select the lowest-numbered open issue whose declared dependencies are merged. Never silently skip an older blocked issue.
 
-For every issue, create separate planner, implementer, verifier, reviewer, and evaluator contexts. Add Security whenever authentication, networking, OS permissions, secrets, remote control, Cloud tenancy, billing, plugins, updates, signing, privacy, or data retention is affected. Add Release for artifacts, distribution, versioning, stores, or deployment. The implementer may not approve or provide final verification of its own change.
+For every issue, create separate planner, implementer, verifier, reviewer, security, and evaluator contexts. Security is mandatory; expand its threat-model evidence whenever authentication, networking, OS permissions, secrets, remote control, Cloud tenancy, billing, plugins, updates, signing, privacy, or data retention is affected. Add Release for artifacts, distribution, versioning, stores, or deployment. The implementer may not approve or provide final verification of its own change.
 
 Use Rust for domain, protocol, Engine, permissions, persistence/sync semantics, pairing/crypto, and shared native logic. Add another language only at a documented platform/UI boundary. Do not ship Python.
 
