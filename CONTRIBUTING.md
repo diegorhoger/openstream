@@ -10,7 +10,7 @@ Thank you for helping build OpenStream.
 6. Add an ADR for a public protocol, irreversible architecture, security boundary, source boundary, dependency policy, or migration decision.
 7. Run repository checks and include exact commands, results, and SHA in the PR. The gate-by-gate reference and local-parity runner live in `docs/engineering/CHECKS.md` and `scripts/local-parity.sh`.
 8. Sign off every commit under the Developer Certificate of Origin with `git commit -s`.
-9. Use distinct planner, implementer, verifier, reviewer, and evaluator context IDs in the PR provenance block.
+9. Use distinct planner, implementer, verifier, reviewer, security, and evaluator context IDs in the PR provenance block. Security review is mandatory; boundary-sensitive changes require expanded threat-model evidence.
 
 The initial unsigned foundation commit predates DCO enforcement and remains an unresolved bootstrap gate. No exception is implied until the maintainer selects and executes Decision C from PR #62.
 
@@ -26,7 +26,7 @@ authoritative source is `AGENTS.md` itself.
 
 ## Roles
 
-Every pull request must distinguish five roles in its provenance block
+Every pull request must distinguish six roles in its provenance block
 and the exact-head review process:
 
 - **Planner** — chose the issue and the work breakdown.
@@ -40,9 +40,9 @@ and the exact-head review process:
   exercised the change end-to-end.
 - **Evaluator** — confirmed acceptance criteria satisfaction and
   evidence integrity, including CI status at exact head.
-- **Security** — added when the change touches networking,
-  authentication, secrets, OS permissions, remote control, plugins,
-  billing, updates, signing, privacy, or tenant isolation.
+- **Security** — mandatory for every change; networking, authentication,
+  secrets, OS permissions, remote control, plugins, billing, updates,
+  signing, privacy, or tenant isolation require expanded threat-model evidence.
 
 ## Exact-head review process
 

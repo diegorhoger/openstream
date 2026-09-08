@@ -6,6 +6,8 @@ on:
 
 permissions:
   contents: read
+  issues: read
+  pull-requests: read
 
 jobs:
   repository-contract:
@@ -144,6 +146,9 @@ jobs:
               exit 1
             }
           done
+
+      - name: Test durable review-evidence validator
+        run: node --test scripts/check-review-evidence.test.mjs
 
       - name: Enforce DCO on every pull-request commit
         env:

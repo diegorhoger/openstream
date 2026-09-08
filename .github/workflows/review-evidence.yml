@@ -1,0 +1,59 @@
+name: review evidence
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, ready_for_review, converted_to_draft, closed]
+  issue_comment:
+    types: [created, edited, deleted]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+  statuses: write
+
+concurrency:
+  group: review-evidence-${{ github.event.pull_request.number || github.event.issue.number }}-${{ github.event_name == 'issue_comment' && github.actor != github.repository_owner && github.run_id || 'trusted' }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request_target' || (github.event.issue.pull_request != null && (github.actor == github.repository_owner || (github.event.action == 'deleted' && github.event.comment.user.login == github.repository_owner)))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted validator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+
+      - name: Validate current evidence and publish exact-head status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          TRUSTED_EVIDENCE_ACTOR: ${{ github.repository_owner }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pr="$(gh api "repos/${GH_REPO}/pulls/${PR_NUMBER}")"
+          head="$(jq -r '.head.sha' <<<"$pr")"
+          body="$(jq -r '.body // ""' <<<"$pr")"
+          target="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          gh api --method POST "repos/${GH_REPO}/statuses/${head}" \
+            -f state=pending \
+            -f context='governance/review-evidence' \
+            -f description='Validating durable exact-head review evidence' \
+            -f target_url="$target"
+          state=success
+          description='Durable exact-head review evidence is valid'
+          if ! PR_BODY="$body" EXPECTED_HEAD="$head" node scripts/check-review-evidence.mjs; then
+            state=failure
+            description='Durable exact-head review evidence is invalid'
+          fi
+          gh api --method POST "repos/${GH_REPO}/statuses/${head}" \
+            -f state="$state" \
+            -f context='governance/review-evidence' \
+            -f description="$description" \
+            -f target_url="$target"
+          test "$state" = success

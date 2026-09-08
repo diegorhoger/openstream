@@ -227,14 +227,15 @@ The four `OSTR-GATE-*-20260902-*` operator-issued IDs on `d97068a…`
 (PR #96 comment 5510817381) and the four orchestrator-issued clean-context
 sub-agent verdicts on `e403a3f…` / `67afc3d…` (PR #96 body),
 `66c1b55…` (PR #97 body), `ea7332b…` (PR #98 body), and
-`3f94df4…` (PR #99 body) are durable
-on the record. The new governance contract model is the operative
+`3f94df4…` (PR #99 body) were recorded in editable PR bodies. Those
+fields do not, by themselves, establish the durable reviewer evidence
+required by `AGENTS.md`. The governance contract model is the operative
 gate: shape + exact-head binding, context isolation from the
 orchestrator, no cryptographic or human independence claim. Per
 AGENTS.md, an approved exact head may be merged under standing
-autonomous-integration authority once the four
-`GATE_<ROLE>_VERDICT: APPROVE@<head>` lines are recorded and
-exact-head CI is green.
+autonomous-integration authority only when the four
+`GATE_<ROLE>_VERDICT: APPROVE@<head>` lines have matching durable
+review-evidence records and exact-head CI is green.
 
 ## Safe Dependabot set (post-PR-#99)
 
@@ -259,9 +260,10 @@ a merge commit with **no** DCO `Signed-off-by` trailer, so the
 `repository-contract` DCO gate failed. The implementer amended the merge
 to add `Signed-off-by: Diego Rhoger <diegorhoger@gmail.com>`, producing
 new head `074b4864853a9b88025f95814c680820e3b3d1db`, re-pushed
-(force-with-lease), and re-dispatched the four clean-context gates at
-that exact head. All four returned `APPROVE@074b486…` (VERIFIER /
-REVIEWER / SECURITY / EVALUATOR) and `repository-contract`, `quality`,
+(force-with-lease), and recorded four `APPROVE@074b486…` values in the
+PR body. No corresponding reviewer-evidence comments were posted before
+merge, so pre-merge compliance with that requirement cannot be established.
+The `repository-contract`, `quality`,
 and `package` CI were all `success` at `074b486` before the merge.
 
 PR #89 (https://github.com/diegorhoger/openstream/pull/89) was
@@ -273,8 +275,9 @@ from `95815c38… # v4.2.1` to `3e5f45b2… # v8.0.1` (first-party
 `.github/workflows/package.yml` smoke-tests Download step. The merge
 declared `Issue: #22`, `Dependencies merged: yes #6, yes #16, yes #21`
 (all closed), merging `main` (`b7a8dcd`) with a signed `--no-ff` merge
-head `67f56d819d30433a2025ff55162cc55c3fa16e70`. All four clean-context
-gates returned `APPROVE@67f56d8…`; `repository-contract`, `quality`, and
+head `67f56d819d30433a2025ff55162cc55c3fa16e70`. Four approval values
+were recorded in the PR body, but no reviewer-evidence comments were posted
+before merge; this is a governance-record deficiency. `repository-contract`, `quality`, and
 `package` (including `smoke tests (installer outputs)`, which directly
 exercises the bumped action) were all `success` before merge.
 
@@ -295,8 +298,9 @@ as the third and final safe-Dependabot merge. It normalizes five
 `.github/workflows/quality.yml` (2). Declared `Issue: #6`,
 `Dependencies merged: yes #2, yes #4` (all closed), merging `main`
 (`5d5f55d`) with a signed `--no-ff` merge head
-`4825e1e4869817a102f8d7d1d852544f1837306a`. All four clean-context
-gates returned `APPROVE@4825e1e…`; `repository-contract`, `quality`, and
+`4825e1e4869817a102f8d7d1d852544f1837306a`. Four approval values were
+recorded in the PR body, but no reviewer-evidence comments were posted before
+merge; this is a governance-record deficiency. `repository-contract`, `quality`, and
 `package` (incl. smoke tests) were all `success` before merge.
 
 Upstream nuance (recorded): the `v6.0.10` annotated tag object is
@@ -308,6 +312,12 @@ not a fork.
 
 ## Safe-Dependabot set complete
 
+Retrospective audit on 2026-09-07 confirmed that #88–#90 are technically
+narrow, DCO-compliant, and backed by green exact-head CI. It also confirmed
+that their timelines contain no substantive reviewer-evidence comments. A
+post-merge review may improve present technical confidence, but cannot turn
+those merges into retroactive pre-merge compliance.
+
 All three operator-authorized safe Dependabot PRs (#88, #89, #90) are
 merged. The remaining Dependabot PRs for `sha2` (#95), `tungstenite`
 (#93), `open` (#92), `active-win-pos-rs` (#94), and `uuid` (#91) are
@@ -315,3 +325,14 @@ boundary (crypto / network / process-execution) and remain OPEN and
 untouched. No tag moves, releases, signing, or operator-owned untracked
 files were touched.
 
+## PR #101 trusted-gate bootstrap exception
+
+PR #101 introduces the first authoritative default-branch
+`pull_request_target` review-evidence workflow. GitHub cannot execute a newly
+introduced trusted workflow for its own PR until that workflow exists on
+`main`. Under the repository owner's standing autonomous-integration authority,
+PR #101 therefore has a one-time bootstrap exception from its own
+`governance/review-evidence` status only. The exception does not waive DCO,
+existing exact-head CI, four fresh clean-context approvals, owner-relayed
+evidence comments, or unresolved findings. It expires when PR #101 is
+integrated and cannot be reused by later PRs.

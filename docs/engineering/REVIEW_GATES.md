@@ -10,6 +10,7 @@
 - Distinct stable context IDs for implementer, verifier, reviewer, and evaluator.
 - No unrelated change, implicit privilege, false-success state, or undocumented crash window.
 - No unresolved conversation.
+- Four owner-relayed evidence comments named by ID in the PR body; the trusted default-branch gate must publish `governance/review-evidence` for the exact head.
 
 ## Main protection target
 
@@ -18,7 +19,7 @@
 - Require an eligible non-author human approval when a second maintainer exists; do not configure a sole-author CODEOWNERS deadlock.
 - Block force pushes and branch deletion.
 - Actions default read-only; grant per job; pin third-party Actions by commit SHA.
-- Auto-merge disabled.
+- Autonomous integration is permitted only under standing owner authority after all exact-head checks and evidence gates pass; hard stops remain human-controlled.
 - Releases require protected environments, signed tags, checksums, SBOM, provenance, and human authorization.
 
 Repository-setting enforcement is a maintainer action and must be verified separately from documentation and CI.

@@ -18,7 +18,7 @@ GitHub issues, pull requests, reviews, checks, and exact commit SHAs are authori
 
 ## Required roles
 
-Planner, Implementer, Verifier, Reviewer, and Evaluator are separate contexts. Add Security for networking, authentication, secrets, OS permissions, remote control, plugins, billing, updates, signing, privacy, or tenant isolation. Add Release for artifacts, versioning, signing, stores, or deployment.
+Planner, Implementer, Verifier, Reviewer, Security, and Evaluator are separate contexts. Security is mandatory for every change; boundary-sensitive changes require expanded threat-model evidence. Add Release for artifacts, versioning, signing, stores, or deployment.
 
 ### AGENT_* provenance (clean-context reviews)
 
@@ -31,11 +31,24 @@ conclusions. Each independently inspects the change and returns `APPROVE`,
 The PR body records each review context as
 `OSTR-CONTEXT-<ROLE>-<CONTEXT_ID>` and each verdict as
 `GATE_<ROLE>_VERDICT: <RESULT>@<40-hex-head>`. Context identifiers must be
-distinct. A durable PR comment must contain the complete verdict and evidence
-for every required role. The machine check validates syntax, role separation,
-and exact-head binding; it cannot prove context isolation. Context isolation is
+distinct. A repository-owner comment must relay exactly one machine-readable
+v1 evidence record for every required role, including the role, matching
+context, exact head, `APPROVE` verdict, summary, commands, structured results
+(exit code, output SHA-256, assertion), and complete reviewer-report SHA-256. The
+PR body records the four distinct numeric relay comment IDs as
+`EVIDENCE_<ROLE>_COMMENT`. The trusted default-branch machine check fetches only
+those comments and validates their PR ownership, current records, role separation, and
+exact-head binding. Creating, editing, or deleting a PR comment republishes a
+SHA-bound evidence status; PR lifecycle and body changes do the same. This consistency and audit gate cannot prove comment
+immutability, authorship of the underlying review, or context isolation.
+Context isolation is
 provided by the orchestrator and must never be represented as cryptographic or
 human independence.
+
+The trusted `pull_request_target` workflow becomes authoritative only after it
+exists on the default branch. Its introducing PR therefore requires a one-time,
+explicitly recorded bootstrap exception plus clean-context review; PR-head code
+must not publish the authoritative status.
 
 The implementer may record returned context identifiers and verdicts but may
 not author the review conclusions. Pending values fail closed. Every push
