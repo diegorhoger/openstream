@@ -22,7 +22,7 @@ No agent self-approves. No failed dependency, unresolved thread, missing DCO, mi
 - CI checks out and asserts the exact PR head.
 - The machine-readable roadmap graph is validated for complete ordered issue coverage and backward-only dependencies.
 - PR bodies carry distinct stable context IDs for implementer, verifier, reviewer, and evaluator.
-- Repository-owner PR comments relay exactly one machine-readable evidence record per required role, bound to the body context and exact head, with commands and results. Comment mutation republishes a SHA-bound evidence status.
+- Repository-owner PR comments relay exactly one machine-readable evidence record per required role, bound to the body context and exact head, with commands and results. The PR body names four distinct comment IDs; the trusted default-branch gate fetches only those comments. Owner comment mutation and PR lifecycle/body changes republish a SHA-bound evidence status.
 - Every PR commit is checked for a DCO `Signed-off-by` trailer.
 - Product paths reject Python without treating absent directories as success-by-error.
 - Hosted service implementation is rejected from the public repository.

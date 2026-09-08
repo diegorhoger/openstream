@@ -34,9 +34,11 @@ The PR body records each review context as
 distinct. A repository-owner comment must relay exactly one machine-readable
 v1 evidence record for every required role, including the role, matching
 context, exact head, `APPROVE` verdict, summary, commands, and results. The
-machine check validates the current comment records, role separation, and
+PR body records the four distinct numeric relay comment IDs as
+`EVIDENCE_<ROLE>_COMMENT`. The trusted default-branch machine check fetches only
+those comments and validates their PR ownership, current records, role separation, and
 exact-head binding. Creating, editing, or deleting a PR comment republishes a
-SHA-bound evidence status. This consistency and audit gate cannot prove comment
+SHA-bound evidence status; PR lifecycle and body changes do the same. This consistency and audit gate cannot prove comment
 immutability, authorship of the underlying review, or context isolation.
 Context isolation is
 provided by the orchestrator and must never be represented as cryptographic or

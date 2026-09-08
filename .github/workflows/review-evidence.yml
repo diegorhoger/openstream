@@ -1,6 +1,8 @@
 name: review evidence
 
 on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
   issue_comment:
     types: [created, edited, deleted]
 
@@ -16,7 +18,7 @@ concurrency:
 
 jobs:
   validate:
-    if: github.event.issue.pull_request != null
+    if: github.event_name == 'pull_request_target' || (github.event.issue.pull_request != null && github.actor == github.repository_owner)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout trusted validator
@@ -29,7 +31,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
           TRUSTED_EVIDENCE_ACTOR: ${{ github.repository_owner }}
         shell: bash
         run: |
@@ -37,6 +39,12 @@ jobs:
           pr="$(gh api "repos/${GH_REPO}/pulls/${PR_NUMBER}")"
           head="$(jq -r '.head.sha' <<<"$pr")"
           body="$(jq -r '.body // ""' <<<"$pr")"
+          target="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          gh api --method POST "repos/${GH_REPO}/statuses/${head}" \
+            -f state=pending \
+            -f context='governance/review-evidence' \
+            -f description='Validating durable exact-head review evidence' \
+            -f target_url="$target"
           state=success
           description='Durable exact-head review evidence is valid'
           if ! PR_BODY="$body" EXPECTED_HEAD="$head" node scripts/check-review-evidence.mjs; then
@@ -47,5 +55,5 @@ jobs:
             -f state="$state" \
             -f context='governance/review-evidence' \
             -f description="$description" \
-            -f target_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            -f target_url="$target"
           test "$state" = success

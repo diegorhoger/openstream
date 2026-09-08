@@ -4,6 +4,7 @@ import process from 'node:process';
 
 export const ROLES = ['VERIFIER', 'REVIEWER', 'SECURITY', 'EVALUATOR'];
 const MARKER = /<!--\s*openstream-review-evidence:v1\s*([\s\S]*?)-->/g;
+const CONTEXT_SUFFIX = '[A-Za-z0-9_-]+';
 
 function bodyField(body, name) {
   const match = body.match(new RegExp(`^[-*]?[ \\t]*${name}:[ \\t]*(.+?)[ \\t]*$`, 'mi'));
@@ -37,6 +38,9 @@ export function validateEvidence({ body, comments, expectedHead, trustedActor })
       problems.push(`missing AGENT_${role}`);
       continue;
     }
+    if (!new RegExp(`^OSTR-CONTEXT-${role}-${CONTEXT_SUFFIX}$`).test(context)) {
+      problems.push(`AGENT_${role} does not identify a ${role} clean context`);
+    }
     contexts.add(context);
     if (verdict !== `APPROVE@${expectedHead}`) {
       problems.push(`GATE_${role}_VERDICT must be APPROVE@${expectedHead}`);
@@ -51,10 +55,13 @@ export function validateEvidence({ body, comments, expectedHead, trustedActor })
     if (record.head !== expectedHead) problems.push(`${role} evidence is not bound to ${expectedHead}`);
     if (record.verdict !== 'APPROVE') problems.push(`${role} evidence verdict must be APPROVE`);
     const validList = (value) => Array.isArray(value) && value.length >= 1 && value.length <= 64
-      && value.every((item) => typeof item === 'string' && item.trim().length > 0 && item.length <= 2000);
+      && value.every((item) => typeof item === 'string' && item.trim().length >= 5 && item.length <= 2000);
     if (!validList(record.commands)) problems.push(`${role} evidence commands must contain 1-64 nonblank strings of at most 2000 characters`);
     if (!validList(record.results)) problems.push(`${role} evidence results must contain 1-64 nonblank strings of at most 2000 characters`);
-    if (typeof record.summary !== 'string' || record.summary.trim().length < 20 || record.summary.length > 8000) problems.push(`${role} evidence summary must contain 20-8000 characters`);
+    if (validList(record.commands) && record.commands.some((command) => !/^(?:\.?\.?\/)?[A-Za-z0-9_.-]+(?:\s+\S.*)$/.test(command.trim()))) problems.push(`${role} evidence commands must describe executable invocations with arguments`);
+    const outcome = /\b(?:pass(?:ed)?|fail(?:ed|ure)?|success|error|warning|approve|repair|hard_stop|exit(?: code)?\s*[=:]?\s*-?\d+|\d+\/\d+)\b/i;
+    if (validList(record.results) && record.results.some((result) => !outcome.test(result))) problems.push(`${role} evidence results must contain a concrete outcome`);
+    if (typeof record.summary !== 'string' || record.summary.trim().length < 40 || record.summary.length > 8000 || !/[A-Za-z]{4}/.test(record.summary)) problems.push(`${role} evidence summary must contain 40-8000 substantive characters`);
   }
 
   if (contexts.size !== ROLES.length) problems.push('review contexts must be pairwise distinct');
@@ -62,14 +69,19 @@ export function validateEvidence({ body, comments, expectedHead, trustedActor })
   return { ok: problems.length === 0, problems };
 }
 
-async function fetchAllIssueComments({ repo, prNumber, token }) {
+async function fetchEvidenceComments({ repo, prNumber, token, body }) {
   const comments = [];
-  let url = `https://api.github.com/repos/${repo}/issues/${prNumber}/comments?per_page=100`;
-  while (url) {
+  const ids = ROLES.map((role) => bodyField(body, `EVIDENCE_${role}_COMMENT`));
+  if (ids.some((id) => !/^\d+$/.test(id ?? '')) || new Set(ids).size !== ROLES.length) {
+    throw new Error('four distinct numeric EVIDENCE_<ROLE>_COMMENT fields are required');
+  }
+  for (const id of ids) {
+    const url = `https://api.github.com/repos/${repo}/issues/comments/${id}`;
     const response = await fetch(url, { headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28' } });
-    if (!response.ok) throw new Error(`GitHub comments request failed: ${response.status}`);
-    comments.push(...(await response.json()));
-    url = response.headers.get('link')?.split(',').find((part) => part.includes('rel="next"'))?.match(/<([^>]+)>/)?.[1] ?? '';
+    if (!response.ok) throw new Error(`GitHub evidence comment ${id} request failed: ${response.status}`);
+    const comment = await response.json();
+    if (comment.issue_url !== `https://api.github.com/repos/${repo}/issues/${prNumber}`) throw new Error(`evidence comment ${id} does not belong to PR #${prNumber}`);
+    comments.push(comment);
   }
   return comments;
 }
@@ -82,7 +94,7 @@ async function main() {
   const token = process.env.GH_TOKEN;
   const trustedActor = process.env.TRUSTED_EVIDENCE_ACTOR;
   if (!body || !expectedHead || !repo || !prNumber || !token || !trustedActor) throw new Error('PR_BODY, EXPECTED_HEAD, GH_REPO, PR_NUMBER, GH_TOKEN, and TRUSTED_EVIDENCE_ACTOR are required');
-  const result = validateEvidence({ body, comments: await fetchAllIssueComments({ repo, prNumber, token }), expectedHead, trustedActor });
+  const result = validateEvidence({ body, comments: await fetchEvidenceComments({ repo, prNumber, token, body }), expectedHead, trustedActor });
   if (!result.ok) {
     for (const problem of result.problems) console.error(problem);
     process.exit(1);

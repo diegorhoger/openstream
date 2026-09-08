@@ -68,6 +68,12 @@ GATE_REVIEWER_VERDICT: PENDING@<exact-head>
 GATE_SECURITY_VERDICT: PENDING@<exact-head>
 GATE_EVALUATOR_VERDICT: PENDING@<exact-head>
 
+EVIDENCE_VERIFIER_COMMENT: pending
+EVIDENCE_REVIEWER_COMMENT: pending
+EVIDENCE_SECURITY_COMMENT: pending
+EVIDENCE_EVALUATOR_COMMENT: pending
+
 The repository owner must relay exactly one `openstream-review-evidence:v1`
 HTML-comment record for each required role, containing role, matching context,
-exact head, verdict, summary, commands, and results.
+exact head, verdict, summary, commands, and results. Record each relay comment's
+numeric ID above; the trusted gate fetches only those four comments directly.

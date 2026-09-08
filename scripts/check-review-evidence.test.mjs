@@ -24,6 +24,15 @@ test('rejects incomplete commands and results', () => {
   assert.match(problems, /commands must contain/);
   assert.match(problems, /results must contain/);
 });
+test('rejects placeholder evidence and malformed context identifiers', () => {
+  const badBody = body.replace(contexts.VERIFIER, 'NOT-A-CONTEXT-VERIFIER');
+  const comments = ROLES.map((role) => comment(role, role === 'VERIFIER' ? { context: 'NOT-A-CONTEXT-VERIFIER', summary: '1234567890123456789012345678901234567890', commands: ['x'], results: ['y'] } : {}));
+  const problems = validateEvidence({ body: badBody, comments, expectedHead: head, trustedActor }).problems.join('\n');
+  assert.match(problems, /does not identify a VERIFIER clean context/);
+  assert.match(problems, /commands must contain/);
+  assert.match(problems, /results must contain/);
+  assert.match(problems, /summary must contain/);
+});
 test('ignores evidence markers from untrusted commenters', () => {
   const untrusted = comment('VERIFIER');
   untrusted.user.login = 'untrusted-user';

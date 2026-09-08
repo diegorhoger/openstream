@@ -10,8 +10,8 @@ Use Rust for domain, protocol, Engine, permissions, persistence/sync semantics, 
 
 Use one issue per branch and PR. Preserve scope. Update deterministic success and failure-path tests and documentation. Record plans, evidence, blockers, and exact SHAs in GitHub. Every push invalidates prior verification.
 
-Continue remediation until all acceptance criteria pass, required checks are green on the exact PR head, review threads are resolved, and the independent evaluator posts the machine-readable REVIEW_GATE comment from `docs/engineering/AGENT_GRAPH.md`.
+Continue remediation until all acceptance criteria pass, required checks are green on the exact PR head, review threads are resolved, and each required clean-context reviewer returns an approval that the repository owner relays in a machine-readable exact-head evidence comment. Record the four comment IDs in the PR body and require the trusted default-branch `governance/review-evidence` status.
 
 Never bypass branch protection, fabricate evidence, weaken tests, expose secrets, force-push shared history, merge unreviewed work, activate billing, deploy production, submit stores, or use signing credentials.
 
-After a human exact-head merge, update issue/dependent state and immediately continue to the next oldest ready work item. Stop only at a documented hard-stop gate. At a hard stop, preserve the exact SHA, post evidence plus 2–3 explicit choices, mark needs-decision, cancel downstream mutations, and wait.
+After exact-head integration under standing owner authority, update issue/dependent state and immediately continue to the next oldest ready work item. Routine human confirmation is not required; stop only at a documented hard-stop gate. At a hard stop, preserve the exact SHA, post evidence plus 2–3 explicit choices, mark needs-decision, cancel downstream mutations, and wait.
