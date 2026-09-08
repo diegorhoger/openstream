@@ -8,7 +8,8 @@ const contexts = Object.fromEntries(ROLES.map((role) => [role, `OSTR-CONTEXT-${r
 const body = ROLES.map((role) => `AGENT_${role}: ${contexts[role]}\nGATE_${role}_VERDICT: APPROVE@${head}`).join('\n');
 
 function comment(role, overrides = {}) {
-  const record = { role, context: contexts[role], head, verdict: 'APPROVE', summary: `Independent ${role} review found the exact head acceptable.`, commands: [`git diff --check base..head # ${role}`], results: [`exit 0; ${role} verification PASS`], ...overrides };
+  const hex = String(ROLES.indexOf(role) + 1).repeat(64);
+  const record = { role, context: contexts[role], head, verdict: 'APPROVE', summary: `Independent ${role} review found the exact head acceptable.`, commands: [`git diff --check base..head # ${role}`], results: [{ exit_code: 0, output_digest: `sha256:${hex}`, assertion: `${role} diff verification completed successfully.` }], report_digest: `sha256:${hex}`, ...overrides };
   return { id: role, expected_role: role, user: { login: trustedActor }, body: `<!-- openstream-review-evidence:v1\n${JSON.stringify(record)}\n-->` };
 }
 
@@ -26,15 +27,15 @@ test('rejects multiple markers in one role relay comment', () => {
 test('rejects incomplete commands and results', () => {
   const problems = validate(ROLES.map((role) => comment(role, role === 'VERIFIER' ? { commands: [null], results: [' '] } : {}))).problems.join('\n');
   assert.match(problems, /commands must contain/);
-  assert.match(problems, /results must contain/);
+  assert.match(problems, /results must correspond/);
 });
 test('rejects placeholder evidence and malformed context identifiers', () => {
   const badBody = body.replace(contexts.VERIFIER, 'NOT-A-CONTEXT-VERIFIER');
-  const comments = ROLES.map((role) => comment(role, role === 'VERIFIER' ? { context: 'NOT-A-CONTEXT-VERIFIER', summary: '1234567890123456789012345678901234567890', commands: ['x'], results: ['y'] } : {}));
+  const comments = ROLES.map((role) => comment(role, role === 'VERIFIER' ? { context: 'NOT-A-CONTEXT-VERIFIER', summary: '1234567890123456789012345678901234567890', commands: ['x'], results: ['y'], report_digest: 'x' } : {}));
   const problems = validateEvidence({ body: badBody, comments, expectedHead: head, trustedActor }).problems.join('\n');
   assert.match(problems, /does not identify a VERIFIER clean context/);
   assert.match(problems, /commands must contain/);
-  assert.match(problems, /results must contain/);
+  assert.match(problems, /results must correspond/);
   assert.match(problems, /summary must contain/);
 });
 test('ignores evidence markers from untrusted commenters', () => {
@@ -51,8 +52,12 @@ test('binds every named relay comment to its declared role', () => {
   assert.match(problems, /SECURITY relay comment contains evidence for VERIFIER/);
 });
 test('rejects no-op and cross-role duplicated evidence', () => {
-  const comments = ROLES.map((role) => comment(role, { commands: ['echo hello'], results: ['exit 0'] }));
+  const comments = ROLES.map((role) => comment(role, { commands: ['bash -c echo-hello'], report_digest: `sha256:${'a'.repeat(64)}` }));
   const problems = validate(comments).problems.join('\n');
-  assert.match(problems, /no-op placeholders/);
-  assert.match(problems, /duplicates another role/);
+  assert.match(problems, /non-noop/);
+  assert.match(problems, /report digest duplicates another role/);
+});
+test('rejects duplicate governance fields in the PR body', () => {
+  const duplicateBody = `${body}\nAGENT_VERIFIER: OSTR-CONTEXT-VERIFIER-conflict`;
+  assert.match(validateEvidence({ body: duplicateBody, comments: ROLES.map((role) => comment(role)), expectedHead: head, trustedActor }).problems.join('\n'), /AGENT_VERIFIER must appear exactly once; found 2/);
 });

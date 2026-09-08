@@ -2,7 +2,7 @@ name: review evidence
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, edited, ready_for_review]
+    types: [opened, synchronize, reopened, edited, ready_for_review, converted_to_draft, closed]
   issue_comment:
     types: [created, edited, deleted]
 
@@ -13,12 +13,12 @@ permissions:
   statuses: write
 
 concurrency:
-  group: review-evidence-${{ github.event.pull_request.number || github.event.issue.number }}
+  group: review-evidence-${{ github.event.pull_request.number || github.event.issue.number }}-${{ github.event_name == 'issue_comment' && github.actor != github.repository_owner && github.run_id || 'trusted' }}
   cancel-in-progress: true
 
 jobs:
   validate:
-    if: github.event_name == 'pull_request_target' || (github.event.issue.pull_request != null && github.actor == github.repository_owner)
+    if: github.event_name == 'pull_request_target' || (github.event.issue.pull_request != null && (github.actor == github.repository_owner || (github.event.action == 'deleted' && github.event.comment.user.login == github.repository_owner)))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout trusted validator

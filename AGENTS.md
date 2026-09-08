@@ -18,7 +18,7 @@ GitHub issues, pull requests, reviews, checks, and exact commit SHAs are authori
 
 ## Required roles
 
-Planner, Implementer, Verifier, Reviewer, and Evaluator are separate contexts. Add Security for networking, authentication, secrets, OS permissions, remote control, plugins, billing, updates, signing, privacy, or tenant isolation. Add Release for artifacts, versioning, signing, stores, or deployment.
+Planner, Implementer, Verifier, Reviewer, Security, and Evaluator are separate contexts. Security is mandatory for every change; boundary-sensitive changes require expanded threat-model evidence. Add Release for artifacts, versioning, signing, stores, or deployment.
 
 ### AGENT_* provenance (clean-context reviews)
 
@@ -33,7 +33,8 @@ The PR body records each review context as
 `GATE_<ROLE>_VERDICT: <RESULT>@<40-hex-head>`. Context identifiers must be
 distinct. A repository-owner comment must relay exactly one machine-readable
 v1 evidence record for every required role, including the role, matching
-context, exact head, `APPROVE` verdict, summary, commands, and results. The
+context, exact head, `APPROVE` verdict, summary, commands, structured results
+(exit code, output SHA-256, assertion), and complete reviewer-report SHA-256. The
 PR body records the four distinct numeric relay comment IDs as
 `EVIDENCE_<ROLE>_COMMENT`. The trusted default-branch machine check fetches only
 those comments and validates their PR ownership, current records, role separation, and

@@ -6,9 +6,8 @@ export const ROLES = ['VERIFIER', 'REVIEWER', 'SECURITY', 'EVALUATOR'];
 const MARKER = /<!--\s*openstream-review-evidence:v1\s*([\s\S]*?)-->/g;
 const CONTEXT_SUFFIX = '[A-Za-z0-9_-]+';
 
-function bodyField(body, name) {
-  const match = body.match(new RegExp(`^[-*]?[ \\t]*${name}:[ \\t]*(.+?)[ \\t]*$`, 'mi'));
-  return match?.[1]?.trim() ?? null;
+function bodyValues(body, name) {
+  return [...body.matchAll(new RegExp(`^[-*]?[ \\t]*${name}:[ \\t]*(.+?)[ \\t]*$`, 'gmi'))].map((match) => match[1].trim());
 }
 
 export function parseEvidence(comments, trustedActor) {
@@ -30,11 +29,16 @@ export function validateEvidence({ body, comments, expectedHead, trustedActor })
   const problems = [];
   const records = parseEvidence(comments, trustedActor);
   const contexts = new Set();
-  const evidenceFingerprints = new Set();
+  const reportDigests = new Set();
+  const getField = (name) => {
+    const values = bodyValues(body, name);
+    if (values.length !== 1) problems.push(`${name} must appear exactly once; found ${values.length}`);
+    return values.length === 1 ? values[0] : null;
+  };
 
   for (const role of ROLES) {
-    const context = bodyField(body, `AGENT_${role}`);
-    const verdict = bodyField(body, `GATE_${role}_VERDICT`);
+    const context = getField(`AGENT_${role}`);
+    const verdict = getField(`GATE_${role}_VERDICT`);
     if (!context) {
       problems.push(`missing AGENT_${role}`);
       continue;
@@ -61,20 +65,19 @@ export function validateEvidence({ body, comments, expectedHead, trustedActor })
     if (record.context !== context) problems.push(`${role} evidence context does not match AGENT_${role}`);
     if (record.head !== expectedHead) problems.push(`${role} evidence is not bound to ${expectedHead}`);
     if (record.verdict !== 'APPROVE') problems.push(`${role} evidence verdict must be APPROVE`);
-    const validList = (value) => Array.isArray(value) && value.length >= 1 && value.length <= 64
-      && value.every((item) => typeof item === 'string' && item.trim().length >= 5 && item.length <= 2000);
-    if (!validList(record.commands)) problems.push(`${role} evidence commands must contain 1-64 nonblank strings of at most 2000 characters`);
-    if (!validList(record.results)) problems.push(`${role} evidence results must contain 1-64 nonblank strings of at most 2000 characters`);
-    if (validList(record.commands) && record.commands.some((command) => !/^(?:\.?\.?\/)?[A-Za-z0-9_.-]+(?:\s+\S.*)$/.test(command.trim()))) problems.push(`${role} evidence commands must describe executable invocations with arguments`);
-    if (validList(record.commands) && record.commands.some((command) => /^(?:echo|printf|true|false)\b/i.test(command.trim()))) problems.push(`${role} evidence commands must not be no-op placeholders`);
-    const outcome = /\b(?:pass(?:ed)?|fail(?:ed|ure)?|success|error|warning|approve|repair|hard_stop|exit(?: code)?\s*[=:]?\s*-?\d+|\d+\/\d+)\b/i;
-    if (validList(record.results) && record.results.some((result) => !outcome.test(result))) problems.push(`${role} evidence results must contain a concrete outcome`);
+    const commandsValid = Array.isArray(record.commands) && record.commands.length >= 1 && record.commands.length <= 64
+      && record.commands.every((item) => typeof item === 'string' && item.trim().length >= 10 && item.length <= 2000
+        && /^(?:\.?\.?\/)?[A-Za-z0-9_.-]+(?:\s+\S.*)$/.test(item.trim()) && !/^(?:echo|printf|true|false|bash\s+-c|sh\s+-c)\b/i.test(item.trim()));
+    const resultsValid = Array.isArray(record.results) && record.results.length === record.commands?.length
+      && record.results.every((item) => item && Number.isInteger(item.exit_code)
+        && /^sha256:[0-9a-f]{64}$/.test(item.output_digest)
+        && typeof item.assertion === 'string' && item.assertion.trim().length >= 20 && item.assertion.length <= 2000);
+    if (!commandsValid) problems.push(`${role} evidence commands must contain 1-64 executable, non-noop strings of 10-2000 characters`);
+    if (!resultsValid) problems.push(`${role} evidence results must correspond to commands with integer exit_code, SHA-256 output_digest, and a substantive assertion`);
     if (typeof record.summary !== 'string' || record.summary.trim().length < 40 || record.summary.length > 8000 || !record.summary.toUpperCase().includes(role)) problems.push(`${role} evidence summary must contain 40-8000 characters and identify the role`);
-    if (validList(record.commands) && validList(record.results)) {
-      const fingerprint = JSON.stringify([record.commands, record.results]);
-      if (evidenceFingerprints.has(fingerprint)) problems.push(`${role} evidence duplicates another role's commands and results`);
-      evidenceFingerprints.add(fingerprint);
-    }
+    if (!/^sha256:[0-9a-f]{64}$/.test(record.report_digest ?? '')) problems.push(`${role} evidence requires a SHA-256 digest of the complete reviewer report`);
+    else if (reportDigests.has(record.report_digest)) problems.push(`${role} evidence report digest duplicates another role`);
+    else reportDigests.add(record.report_digest);
   }
 
   if (contexts.size !== ROLES.length) problems.push('review contexts must be pairwise distinct');
@@ -84,7 +87,9 @@ export function validateEvidence({ body, comments, expectedHead, trustedActor })
 
 async function fetchEvidenceComments({ repo, prNumber, token, body, trustedActor }) {
   const comments = [];
-  const ids = ROLES.map((role) => bodyField(body, `EVIDENCE_${role}_COMMENT`));
+  const idFields = ROLES.map((role) => bodyValues(body, `EVIDENCE_${role}_COMMENT`));
+  if (idFields.some((values) => values.length !== 1)) throw new Error('each EVIDENCE_<ROLE>_COMMENT field must appear exactly once');
+  const ids = idFields.map(([id]) => id);
   if (ids.some((id) => !/^\d+$/.test(id ?? '')) || new Set(ids).size !== ROLES.length) {
     throw new Error('four distinct numeric EVIDENCE_<ROLE>_COMMENT fields are required');
   }
